@@ -30,8 +30,7 @@ public class BranchService {
 
     public Branch updateBranch(String id, Branch updatedBranch) {
 
-        Branch branch = branchRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Branch not found"));
+        Branch branch = branchRepository.findById(id).orElseThrow(() -> new RuntimeException("Branch not found"));
 
         branch.setBranchName(updatedBranch.getBranchName());
         branch.setLocation(updatedBranch.getLocation());
@@ -42,12 +41,13 @@ public class BranchService {
         return branchRepository.save(branch);
     }
 
-    public void deleteBranch(String id) {
+    public Branch deleteBranch(String id) {
 
-        Branch branch = branchRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Branch not found"));
+        Branch branch = branchRepository.findById(id).orElseThrow(() -> new RuntimeException("Branch not found"));
 
-        branchRepository.delete(branch);
+        branch.setIsActive(false);
+
+        return branchRepository.save(branch);
     }
 }
 

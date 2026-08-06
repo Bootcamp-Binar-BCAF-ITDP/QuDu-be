@@ -1,5 +1,7 @@
 package com.delvin.loan.common;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,9 +19,8 @@ public class ApiResponse<T> {
 
     private Integer status;
 
-    private Boolean success;
-
     private String message;
 
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private T data;
 }

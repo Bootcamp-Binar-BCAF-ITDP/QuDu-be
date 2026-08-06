@@ -45,12 +45,12 @@ public class BranchController {
     @PostMapping
     public ResponseEntity<ApiResponse<Branch>> createBranch(@RequestBody Branch branch) {
 
-        Branch savedBranch = branchService.createBranch(branch);
+        branchService.createBranch(branch);
 
-        return ResponseUtil.created("Branch created successfully", savedBranch);
+        return ResponseUtil.created("Branch created successfully", null);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/update/{id}")
     public ResponseEntity<ApiResponse<Branch>> updateBranch(
             @PathVariable String id,
             @RequestBody Branch branch) {
@@ -60,7 +60,7 @@ public class BranchController {
         return ResponseUtil.success("Branch updated successfully", updatedBranch);
     }
 
-    @DeleteMapping("/{id}")
+    @PutMapping("/delete/{id}")
     public ResponseEntity<ApiResponse<Object>> deleteBranch(@PathVariable String id) {
 
         branchService.deleteBranch(id);
