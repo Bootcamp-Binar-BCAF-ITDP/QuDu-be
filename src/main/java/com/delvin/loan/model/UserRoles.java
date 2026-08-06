@@ -12,7 +12,8 @@ public class UserRoles {
 
     @Id
     @Column(name = "user_roles_id")
-    private String userRolesId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer userRolesId;
 
     @ManyToOne
     @JoinColumn(name = "user_id")

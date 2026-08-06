@@ -15,7 +15,8 @@ public class LoanDocument {
 
     @Id
     @Column(name = "document_id")
-    private String documentId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer documentId;
 
     @ManyToOne
     @JoinColumn(name = "application_id")

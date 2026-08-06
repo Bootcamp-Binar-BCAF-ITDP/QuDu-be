@@ -16,7 +16,8 @@ public class LoanVerification {
 
     @Id
     @Column(name = "verification_id")
-    private String verificationId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer verificationId;
 
     @ManyToOne
     @JoinColumn(name = "verified_by")

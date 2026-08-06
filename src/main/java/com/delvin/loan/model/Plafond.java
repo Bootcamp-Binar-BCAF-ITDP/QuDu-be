@@ -14,7 +14,8 @@ public class Plafond {
 
     @Id
     @Column(name = "plafond_id")
-    private String plafondId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer plafondId;
 
     private String productName;
     private BigDecimal minimumAmount;

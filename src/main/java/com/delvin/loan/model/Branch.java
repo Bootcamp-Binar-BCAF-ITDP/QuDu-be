@@ -15,8 +15,10 @@ public class Branch {
 
     @Id
     @Column(name = "branch_id")
-    private String branchId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer branchId;
 
+    private String branchCode;
     private String branchName;
     private String location;
     private String email;

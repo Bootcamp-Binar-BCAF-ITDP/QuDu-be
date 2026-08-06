@@ -1,11 +1,13 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.dto.request.branch.BranchRequest;
+import com.delvin.loan.dto.response.branch.BranchResponse;
 import com.delvin.loan.model.Branch;
 import com.delvin.loan.repository.BranchRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class BranchService {
@@ -16,38 +18,68 @@ public class BranchService {
         this.branchRepository = branchRepository;
     }
 
-    public List<Branch> getAllBranches() {
-        return branchRepository.findAll();
+    public List<BranchResponse> getAllBranches() {
+
+        return branchRepository.findByIsActiveOrderByBranchIdAsc(true)
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
-    public Optional<Branch> getBranchById(String id) {
-        return branchRepository.findById(id);
+    public BranchResponse getBranchById(String branchCode) {
+        Branch branch = branchRepository.findByBranchCodeAndIsActive(branchCode, true)
+                .orElseThrow(() -> new RuntimeException("Branch not found"));
+        return toResponse(branch);
     }
 
-    public Branch createBranch(Branch branch) {
-        return branchRepository.save(branch);
+    public BranchResponse createBranch(BranchRequest request) {
+        if (branchRepository.findByBranchCodeAndIsActive(request.getBranchCode(), true).isPresent()) {
+            throw new RuntimeException("Branch code already exists.");
+        }
+
+        Branch branch = new Branch();
+        branch.setBranchCode(request.getBranchCode());
+        branch.setBranchName(request.getBranchName());
+        branch.setLocation(request.getLocation());
+        branch.setEmail(request.getEmail());
+        branch.setPhoneNumber(request.getPhoneNumber());
+        branch.setIsActive(request.getIsActive());
+
+        return toResponse(branchRepository.save(branch));
     }
 
-    public Branch updateBranch(String id, Branch updatedBranch) {
+    public BranchResponse updateBranch(Integer id, BranchRequest request) {
+        Branch branch = branchRepository.findByBranchIdAndIsActive(id, true)
+                .orElseThrow(() -> new RuntimeException("Branch not found"));
 
-        Branch branch = branchRepository.findById(id).orElseThrow(() -> new RuntimeException("Branch not found"));
+        branch.setBranchName(request.getBranchName());
+        branch.setLocation(request.getLocation());
+        branch.setEmail(request.getEmail());
+        branch.setPhoneNumber(request.getPhoneNumber());
+        branch.setIsActive(request.getIsActive());
 
-        branch.setBranchName(updatedBranch.getBranchName());
-        branch.setLocation(updatedBranch.getLocation());
-        branch.setEmail(updatedBranch.getEmail());
-        branch.setPhoneNumber(updatedBranch.getPhoneNumber());
-        branch.setIsActive(updatedBranch.getIsActive());
-
-        return branchRepository.save(branch);
+        return toResponse(branchRepository.save(branch));
     }
 
-    public Branch deleteBranch(String id) {
-
-        Branch branch = branchRepository.findById(id).orElseThrow(() -> new RuntimeException("Branch not found"));
-
+    public BranchResponse deleteBranch(Integer id) {
+        Branch branch = branchRepository.findByBranchIdAndIsActive(id, true)
+                .orElseThrow(() -> new RuntimeException("Branch not found"));
         branch.setIsActive(false);
+        return toResponse(branchRepository.save(branch));
+    }
 
-        return branchRepository.save(branch);
+    private BranchResponse toResponse(Branch branch) {
+
+        BranchResponse response = new BranchResponse();
+
+        response.setBranchId(branch.getBranchId());
+        response.setBranchCode(branch.getBranchCode());
+        response.setBranchName(branch.getBranchName());
+        response.setLocation(branch.getLocation());
+        response.setEmail(branch.getEmail());
+        response.setPhoneNumber(branch.getPhoneNumber());
+        response.setIsActive(branch.getIsActive());
+
+        return response;
     }
 }
-

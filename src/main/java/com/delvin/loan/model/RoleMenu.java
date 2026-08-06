@@ -12,7 +12,8 @@ public class RoleMenu {
 
     @Id
     @Column(name = "role_menu_id")
-    private String roleMenuId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer roleMenuId;
 
     @ManyToOne
     @JoinColumn(name = "role_id")

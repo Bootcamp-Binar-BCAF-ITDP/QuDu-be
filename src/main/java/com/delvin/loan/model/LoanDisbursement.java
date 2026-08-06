@@ -15,7 +15,8 @@ public class LoanDisbursement {
 
     @Id
     @Column(name = "disburse_id")
-    private String disburseId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer disburseId;
 
     @OneToOne
     @JoinColumn(name = "application_id")

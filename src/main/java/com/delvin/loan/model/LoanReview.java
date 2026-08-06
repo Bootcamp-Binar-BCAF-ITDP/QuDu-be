@@ -15,7 +15,8 @@ public class LoanReview {
 
     @Id
     @Column(name = "review_id")
-    private String reviewId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer reviewId;
 
     @OneToOne
     @JoinColumn(name = "application_id")

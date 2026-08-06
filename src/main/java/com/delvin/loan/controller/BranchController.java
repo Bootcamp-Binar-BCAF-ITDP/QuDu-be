@@ -2,7 +2,8 @@ package com.delvin.loan.controller;
 
 import com.delvin.loan.common.ApiResponse;
 import com.delvin.loan.common.ResponseUtil;
-import com.delvin.loan.model.Branch;
+import com.delvin.loan.dto.request.branch.BranchRequest;
+import com.delvin.loan.dto.response.branch.BranchResponse;
 import com.delvin.loan.service.BranchService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,50 +22,84 @@ public class BranchController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Branch>>> getAllBranches() {
+    public ResponseEntity<ApiResponse<List<BranchResponse>>> getAllBranches() {
 
-        List<Branch> branches = branchService.getAllBranches();
+        List<BranchResponse> branches = branchService.getAllBranches();
 
         if (branches.isEmpty()) {
             return ResponseUtil.success("No branch data found", branches);
         }
 
-        return ResponseUtil.success("Branches retrieved successfully", branches);
+        return ResponseUtil.success("Get branch successfully", branches);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<Branch>> getBranchById(@PathVariable String id) {
+    @GetMapping("/{branchCode}")
+    public ResponseEntity<ApiResponse<BranchResponse>> getBranchById(@PathVariable String branchCode) {
 
-        return branchService.getBranchById(id)
-                .map(branch ->
-                        ResponseUtil.success("Branch found", branch))
-                .orElseGet(() ->
-                        ResponseUtil.error(HttpStatus.NOT_FOUND, "Branch not found"));
+        try {
+
+            BranchResponse response = branchService.getBranchById(branchCode);
+
+            return ResponseUtil.success("Branch found", response);
+
+        } catch (RuntimeException e) {
+
+            return ResponseUtil.error(HttpStatus.NOT_FOUND, e.getMessage());
+
+        }
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Branch>> createBranch(@RequestBody Branch branch) {
+    public ResponseEntity<ApiResponse<BranchResponse>> createBranch(@RequestBody BranchRequest request) {
 
-        branchService.createBranch(branch);
+        try {
 
-        return ResponseUtil.created("Branch created successfully", null);
+            branchService.createBranch(request);
+
+            return ResponseUtil.created("Branch created successfully", null);
+
+        } catch (RuntimeException e) {
+
+            return ResponseUtil.error(HttpStatus.BAD_REQUEST, e.getMessage());
+
+        } catch (Exception e) {
+
+            return ResponseUtil.error(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "An unexpected error occurred."
+            );
+        }
     }
 
     @PutMapping("/update/{id}")
-    public ResponseEntity<ApiResponse<Branch>> updateBranch(
-            @PathVariable String id,
-            @RequestBody Branch branch) {
+    public ResponseEntity<ApiResponse<BranchResponse>> updateBranch(@PathVariable Integer id, @RequestBody BranchRequest request) {
 
-        Branch updatedBranch = branchService.updateBranch(id, branch);
+        try {
 
-        return ResponseUtil.success("Branch updated successfully", updatedBranch);
+            branchService.updateBranch(id, request);
+
+            return ResponseUtil.success("Branch updated successfully", null);
+
+        } catch (RuntimeException e) {
+
+            return ResponseUtil.error(HttpStatus.NOT_FOUND, e.getMessage());
+
+        }
     }
 
-    @PutMapping("/delete/{id}")
-    public ResponseEntity<ApiResponse<Object>> deleteBranch(@PathVariable String id) {
+    @DeleteMapping("/delete/{id}")
+    public ResponseEntity<ApiResponse<BranchResponse>> deleteBranch(@PathVariable Integer id) {
 
-        branchService.deleteBranch(id);
+        try {
 
-        return ResponseUtil.success("Branch deleted successfully", null);
+            branchService.deleteBranch(id);
+
+            return ResponseUtil.success("Branch deleted successfully", null);
+
+        } catch (RuntimeException e) {
+
+            return ResponseUtil.error(HttpStatus.NOT_FOUND, e.getMessage());
+
+        }
     }
 }
