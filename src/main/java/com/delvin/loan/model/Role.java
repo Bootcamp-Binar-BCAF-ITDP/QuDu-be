@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -24,5 +25,5 @@ public class Role {
     private List<UserRoles> userRoles;
 
     @OneToMany(mappedBy = "role")
-    private List<RoleMenu> roleMenus;
+    private List<RoleMenu> roleMenus = new ArrayList<>();
 }
