@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 public class LoanDocument {
 
     @Id
-    @Column(name = "document_id")
+    @Column(name = "document_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer documentId;
 
@@ -22,8 +22,15 @@ public class LoanDocument {
     @JoinColumn(name = "application_id")
     private LoanApplication application;
 
+    @Column(nullable = false)
     private String documentType;
+
+    @Column(nullable = false)
     private String fileName;
+
+    @Column(nullable = false)
     private String fileUrl;
+
+    @Column(nullable = false)
     private LocalDate uploadedAt;
 }

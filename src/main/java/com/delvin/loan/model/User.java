@@ -13,22 +13,28 @@ import java.util.List;
 public class User {
 
     @Id
-    @Column(name = "user_id")
+    @Column(name = "user_id", nullable = false)
     private String userId;
 
     @ManyToOne
     @JoinColumn(name = "branch_id")
     private Branch branch;
 
+    @ManyToOne
+    @JoinColumn(name = "role_id")
+    private Role role;
+
+    @Column(nullable = false)
     private String username;
+    @Column(nullable = false)
     private String email;
+    @Column(nullable = false)
     private String password;
+    @Column(nullable = false)
     private String fullName;
+    @Column(nullable = false)
     private String phoneNumber;
     private Boolean isActive;
-
-    @OneToMany(mappedBy = "user")
-    private List<UserRoles> userRoles;
 
     @OneToMany(mappedBy = "marketing")
     private List<LoanReview> reviews;

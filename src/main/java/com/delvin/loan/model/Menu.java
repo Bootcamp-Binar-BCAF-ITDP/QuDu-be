@@ -14,10 +14,11 @@ import java.util.List;
 public class Menu {
 
     @Id
-    @Column(name = "menu_id")
+    @Column(name = "menu_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer menuId;
 
+    @Column(nullable = false)
     private String menuName;
 
     @OneToMany(mappedBy = "menu")

@@ -14,10 +14,11 @@ import java.util.List;
 public class Role {
 
     @Id
-    @Column(name = "role_id")
+    @Column(name = "role_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer roleId;
 
+    @Column(nullable = false)
     private String roleName;
     private String description;
 

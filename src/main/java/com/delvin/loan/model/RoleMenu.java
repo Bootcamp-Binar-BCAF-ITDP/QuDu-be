@@ -11,7 +11,7 @@ import lombok.Setter;
 public class RoleMenu {
 
     @Id
-    @Column(name = "role_menu_id")
+    @Column(name = "role_menu_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer roleMenuId;
 

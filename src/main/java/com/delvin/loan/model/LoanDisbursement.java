@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 public class LoanDisbursement {
 
     @Id
-    @Column(name = "disburse_id")
+    @Column(name = "disburse_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer disburseId;
 
@@ -30,9 +30,18 @@ public class LoanDisbursement {
     @JoinColumn(name = "verification_id")
     private LoanVerification verification;
 
+    @Column(nullable = false)
     private BigDecimal disbursedAmount;
+
+    @Column(nullable = false)
     private String bankName;
+
+    @Column(nullable = false)
     private String accountNumber;
+
+    @Column(nullable = false)
     private LocalDate disbursementDate;
+
+    @Column(nullable = false)
     private String status;
 }

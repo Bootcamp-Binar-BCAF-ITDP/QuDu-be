@@ -13,7 +13,7 @@ import java.util.List;
 public class Plafond {
 
     @Id
-    @Column(name = "plafond_id")
+    @Column(name = "plafond_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer plafondId;
 

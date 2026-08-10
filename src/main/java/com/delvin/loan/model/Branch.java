@@ -14,15 +14,26 @@ import java.util.List;
 public class Branch {
 
     @Id
-    @Column(name = "branch_id")
+    @Column(name = "branch_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer branchId;
 
+    @Column(nullable = false)
     private String branchCode;
+
+    @Column(nullable = false)
     private String branchName;
+
+    @Column(nullable = false)
     private String location;
+
+    @Column(nullable = false)
     private String email;
+
+    @Column(nullable = false)
     private String phoneNumber;
+
+    @Column(nullable = false)
     private Boolean isActive;
 
     @OneToMany(mappedBy = "branch", fetch = FetchType.LAZY)

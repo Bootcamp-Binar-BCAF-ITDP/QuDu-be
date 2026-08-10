@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 public class LoanReview {
 
     @Id
-    @Column(name = "review_id")
+    @Column(name = "review_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer reviewId;
 
@@ -26,7 +26,10 @@ public class LoanReview {
     @JoinColumn(name = "marketing_id")
     private User marketing;
 
+    @Column(nullable = false)
     private String recommendation;
+    @Column(nullable = false)
     private String reviewNote;
+    @Column(nullable = false)
     private LocalDate uploadedAt;
 }
