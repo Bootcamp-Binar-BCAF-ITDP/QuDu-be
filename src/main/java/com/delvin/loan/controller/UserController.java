@@ -48,28 +48,6 @@ public class UserController {
         }
     }
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<UserResponse>> createUser(@RequestBody UserRequest request) {
-
-        try {
-
-            UserResponse response = userService.createUser(request);
-
-            return ResponseUtil.created("User created successfully", null);
-
-        } catch (RuntimeException e) {
-
-            return ResponseUtil.error(HttpStatus.BAD_REQUEST, e.getMessage());
-
-        } catch (Exception e) {
-
-            return ResponseUtil.error(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "An unexpected error occurred."
-            );
-        }
-    }
-
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<UserResponse>> updateUser(
             @PathVariable String id,

@@ -2,11 +2,6 @@ package com.delvin.loan.exception;
 
 import org.springframework.http.HttpStatus;
 
-/**
- * Thrown for any expected, user-facing failure (validation, wrong workflow
- * step, not found, forbidden role, etc). Carries the HTTP status it should
- * be reported with so GlobalExceptionHandler can translate it directly.
- */
 public class BusinessException extends RuntimeException {
 
     private final HttpStatus status;

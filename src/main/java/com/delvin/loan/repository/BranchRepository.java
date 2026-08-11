@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface BranchRepository extends JpaRepository<Branch, String> {
+public interface BranchRepository extends JpaRepository<Branch, Integer> {
 
     List<Branch> findByIsActiveOrderByBranchIdAsc(Boolean isActive);
 

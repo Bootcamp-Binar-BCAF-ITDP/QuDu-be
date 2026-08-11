@@ -19,7 +19,6 @@ public class LoanDisbursementController {
         this.disbursementService = disbursementService;
     }
 
-    /** Back office clicks "Disburse" for a VERIFIED application. */
     @PostMapping
     public ResponseEntity<ApiResponse<LoanDisbursementResponse>> disburse(
             @Valid @RequestBody LoanDisbursementRequest request) {

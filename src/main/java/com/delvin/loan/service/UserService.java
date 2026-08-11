@@ -47,44 +47,6 @@ public class UserService {
         return toResponse(user);
     }
 
-    @Transactional
-    public UserResponse createUser(UserRequest request) {
-
-        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new RuntimeException("Username already exists.");
-        }
-
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already exists.");
-        }
-
-        Branch branch = branchRepository
-                .findByBranchIdAndIsActive(request.getBranchId(), true)
-                .orElseThrow(() -> new RuntimeException("Branch not found"));
-
-        Role role = roleRepository.findById(request.getRoleId())
-                .orElseThrow(() -> new RuntimeException("Role not found"));
-
-        User user = new User();
-
-        user.setUserId(request.getUserId());
-        user.setBranch(branch);
-        user.setRole(role);
-        user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setPassword(request.getPassword());
-        user.setFullName(request.getFullName());
-        user.setPhoneNumber(request.getPhoneNumber());
-        user.setIsActive(
-                request.getIsActive() != null
-                        ? request.getIsActive()
-                        : true
-        );
-
-        User savedUser = userRepository.save(user);
-
-        return toResponse(savedUser);
-    }
 
     @Transactional
     public UserResponse updateUser(String id, UserRequest request) {
