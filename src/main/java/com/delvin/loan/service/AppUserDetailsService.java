@@ -19,13 +19,13 @@ public class AppUserDetailsService implements UserDetailsService {
     private final UserRepository userRepository;
 
     @Override
-    public UserDetails loadUserByUsername(String username) {
+    public UserDetails loadUserByUsername(String usernameOrEmail) {
 
         User user = userRepository
-                .findByUsernameOrEmail(username, username)
+                .findByUsernameOrEmail(usernameOrEmail, usernameOrEmail)
                 .orElseThrow(() ->
                         new UsernameNotFoundException(
-                                "User tidak ditemukan"
+                                "Username atau email tidak ditemukan"
                         )
                 );
 
