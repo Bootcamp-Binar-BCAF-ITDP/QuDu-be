@@ -1,8 +1,11 @@
 package com.delvin.loan.controller;
 
+import com.delvin.loan.common.ApiResponse;
 import com.delvin.loan.common.ResponseUtil;
+import com.delvin.loan.dto.request.auth.ForgotPasswordRequest;
 import com.delvin.loan.dto.request.auth.LoginRequest;
 import com.delvin.loan.dto.request.auth.RegisterRequest;
+import com.delvin.loan.dto.request.auth.ResetPasswordRequest;
 import com.delvin.loan.dto.response.auth.AuthResponse;
 import com.delvin.loan.dto.response.auth.RegisterResponse;
 import com.delvin.loan.service.AuthService;
@@ -45,5 +48,18 @@ public class AuthController {
                 authService.login(request);
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+        return ResponseUtil.success(
+                "If that email is registered, a password reset link has been sent", null);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseUtil.success("Password has been reset successfully", null);
     }
 }

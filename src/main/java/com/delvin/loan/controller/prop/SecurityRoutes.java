@@ -6,13 +6,12 @@ public class SecurityRoutes {
     }
 
     // PUBLIC
-
     public static final String[] PUBLIC = {
-            "/api/auth/**"
+            "/api/auth/**",
+            "/api/loan-applications/{applicationId}/documents"
     };
 
     // SUPER ADMIN
-
     public static final String[] SUPERADMIN = {
             "/api/users/**",
             "/api/roles/**",
@@ -21,21 +20,25 @@ public class SecurityRoutes {
     };
 
     // MARKETING
-
     public static final String[] MARKETING = {
-            "/api/loan-reviews/**"
+            "/api/loan-reviews/**",
+//            "/api/loan-applications/{applicationId}/documents"
     };
 
     // BRANCH MANAGER
-
     public static final String[] BRANCH_MANAGER = {
-            "/api/loan-verifications/**",
-            "/api/loan-approvals/**"
+            "/api/loan-approvals/**",
+            "/api/loan-applications/bucket/branch-manager",
+//            "/api/loan-applications/{applicationId}/documents"
     };
 
     // BACKOFFICE
-
     public static final String[] BACKOFFICE = {
-            "/api/disbursements/**"
+            "/api/loan-verifications/**",
+            "/api/loan-disbursements/**",
+            "/api/loan-applications/bucket/back-office",
+            "/bucket/back-office",
+//            "/api/loan-applications/{applicationId}/documents",
+            "/api/loan-verifications/**"
     };
 }
