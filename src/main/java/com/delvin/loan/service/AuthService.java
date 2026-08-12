@@ -1,19 +1,15 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.AccountType;
 import com.delvin.loan.dto.response.auth.RegisterResponse;
-import com.delvin.loan.model.Branch;
-import com.delvin.loan.repository.BranchRepository;
+import com.delvin.loan.model.*;
+import com.delvin.loan.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import com.delvin.loan.dto.request.auth.LoginRequest;
 import com.delvin.loan.dto.request.auth.RegisterRequest;
 import com.delvin.loan.dto.response.auth.AuthResponse;
-import com.delvin.loan.model.AppUser;
-import com.delvin.loan.model.Role;
-import com.delvin.loan.model.User;
-import com.delvin.loan.repository.RoleRepository;
-import com.delvin.loan.repository.UserRepository;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -21,8 +17,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import com.delvin.loan.dto.request.auth.ForgotPasswordRequest;
 import com.delvin.loan.dto.request.auth.ResetPasswordRequest;
-import com.delvin.loan.model.PasswordResetToken;
-import com.delvin.loan.repository.PasswordResetTokenRepository;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -37,6 +31,8 @@ public class AuthService {
     private final BranchRepository branchRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailService emailService;
+    private final CustomerRepository customerRepository;
+    private final PlafondRepository plafondRepository;
 
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -45,13 +41,42 @@ public class AuthService {
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
 
-        if (userRepository.existsByUsername(request.getUsername())) {
+        if (request.getAccountType() == AccountType.USER) {
+            return registerUser(request);
+        }
+
+        if (request.getAccountType() == AccountType.CUSTOMER) {
+            return registerCustomer(request);
+        }
+
+        throw new IllegalArgumentException(
+                "Account type tidak valid"
+        );
+    }
+
+    private RegisterResponse registerUser(RegisterRequest request) {
+
+        if (request.getUsername() == null ||
+                request.getUsername().isBlank()) {
+
+            throw new IllegalArgumentException(
+                    "Username wajib diisi"
+            );
+        }
+
+        if (userRepository.existsByUsername(
+                request.getUsername()
+        )) {
+
             throw new IllegalArgumentException(
                     "Username sudah digunakan"
             );
         }
 
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmail(
+                request.getEmail()
+        )) {
+
             throw new IllegalArgumentException(
                     "Email sudah digunakan"
             );
@@ -59,31 +84,158 @@ public class AuthService {
 
         Role role = roleRepository
                 .findById(request.getRoleId())
-                .orElseThrow(() -> new IllegalArgumentException("Role tidak ditemukan: " + request.getRoleId()));
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Role tidak ditemukan"
+                        )
+                );
 
-        Branch branch = branchRepository.findByBranchIdAndIsActive(request.getBranchId(), true)
-                .orElseThrow(() -> new IllegalArgumentException("Branch tidak ditemukan atau tidak aktif: " + request.getBranchId()));
+        Branch branch = branchRepository
+                .findByBranchIdAndIsActive(
+                        request.getBranchId(),
+                        true
+                )
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Branch tidak ditemukan atau tidak aktif"
+                        )
+                );
 
         User user = new User();
 
-        user.setUserId(UUID.randomUUID().toString());
-        user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setPassword(
-                passwordEncoder.encode(request.getPassword())
+        user.setUserId(
+                UUID.randomUUID().toString()
         );
-        user.setFullName(request.getFullName());
-        user.setPhoneNumber(request.getPhoneNumber());
+
+        user.setUsername(
+                request.getUsername()
+        );
+
+        user.setEmail(
+                request.getEmail()
+        );
+
+        user.setPassword(
+                passwordEncoder.encode(
+                        request.getPassword()
+                )
+        );
+
+        user.setFullName(
+                request.getFullName()
+        );
+
+        user.setPhoneNumber(
+                request.getPhoneNumber()
+        );
+
         user.setBranch(branch);
         user.setRole(role);
         user.setIsActive(true);
 
-        User savedUser = userRepository.save(user);
+        User savedUser =
+                userRepository.save(user);
 
         return RegisterResponse.builder()
                 .userId(savedUser.getUserId())
                 .username(savedUser.getUsername())
                 .role(role.getRoleName())
+                .build();
+    }
+
+    private RegisterResponse registerCustomer(RegisterRequest request) {
+
+        if (customerRepository.existsByEmail(
+                request.getEmail()
+        )) {
+
+            throw new IllegalArgumentException(
+                    "Email sudah digunakan"
+            );
+        }
+
+        if (customerRepository.existsByNik(
+                request.getNik()
+        )) {
+
+            throw new IllegalArgumentException(
+                    "NIK sudah digunakan"
+            );
+        }
+
+        Plafond plafond = plafondRepository
+                .findById(1)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Plafond tidak ditemukan"
+                        )
+                );
+
+        Customer customer = new Customer();
+
+        customer.setCustomerId(
+                UUID.randomUUID().toString()
+        );
+
+        customer.setPlafond(plafond);
+
+        customer.setCustomerName(
+                request.getFullName()
+        );
+
+        customer.setEmail(
+                request.getEmail()
+        );
+
+        customer.setPassword(
+                passwordEncoder.encode(
+                        request.getPassword()
+                )
+        );
+
+        customer.setPhoneNumber(
+                request.getPhoneNumber()
+        );
+
+        customer.setNik(
+                request.getNik()
+        );
+
+        customer.setAddress(
+                request.getAddress()
+        );
+
+        customer.setSex(
+                request.getSex()
+        );
+
+        customer.setBirthPlace(
+                request.getBirthPlace()
+        );
+
+        customer.setBirthDate(
+                request.getBirthDate()
+        );
+
+        customer.setOccupation(
+                request.getOccupation()
+        );
+
+        customer.setCitizenship(
+                request.getCitizenship()
+        );
+
+        Customer savedCustomer =
+                customerRepository.save(customer);
+
+        return RegisterResponse.builder()
+                .userId(savedCustomer.getCustomerId())
+
+                // RegisterResponse currently uses username,
+                // so return customer email
+                .username(savedCustomer.getEmail())
+
+                .role("CUSTOMER")
                 .build();
     }
 
@@ -122,12 +274,10 @@ public class AuthService {
                 .findByEmail(request.getEmail())
                 .orElse(null);
 
-        // Do not reveal whether an email exists
         if (user == null) {
             return;
         }
 
-        // Remove old reset token
         passwordResetTokenRepository.deleteByUser(user);
 
         String token = UUID.randomUUID().toString();

@@ -71,6 +71,7 @@ public class JwtService {
                 .claim("userId", user.getUserId())
                 .claim("username", user.getUsername())
                 .claim("role", user.getRole())
+                .claim("accountType", user.getAccountType().name())
                 .issuedAt(Date.from(issuedAt))
                 .signWith(key);
     }

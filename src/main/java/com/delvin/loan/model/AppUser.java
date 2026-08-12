@@ -1,5 +1,6 @@
 package com.delvin.loan.model;
 
+import com.delvin.loan.common.AccountType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -17,7 +18,8 @@ public class AppUser implements UserDetails {
     private String username;
     private String password;
     private String userId;
-    private String role;
+    private String role;;
+    private AccountType accountType;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
