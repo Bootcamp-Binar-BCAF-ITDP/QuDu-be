@@ -9,10 +9,8 @@ import java.util.List;
 @Setter
 public class UserRequest {
 
-    private String userId;
     private String username;
     private String email;
-    private String password;
     private String fullName;
     private String phoneNumber;
     private Boolean isActive;

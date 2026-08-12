@@ -1,6 +1,7 @@
 package com.delvin.loan.configuration;
 
 import com.delvin.loan.common.RoleName;
+import com.delvin.loan.controller.prop.SecurityRoutes;
 import com.delvin.loan.filter.JwtAuthFilter;
 import com.delvin.loan.service.AppUserDetailsService;
 import lombok.RequiredArgsConstructor;
@@ -154,16 +155,8 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(request -> request
-
-                        .requestMatchers(
-                                "/api/auth/**"
-                        ).permitAll()
-
-                        .requestMatchers(
-                                "/api/users/**"
-                        ).hasAnyRole(
-                                RoleName.SUPERADMIN
-                        )
+                        .requestMatchers(SecurityRoutes.PUBLIC).permitAll()
+                        .requestMatchers(SecurityRoutes.SUPERADMIN).hasAnyRole(RoleName.SUPERADMIN)
 
                         .anyRequest()
                         .authenticated()

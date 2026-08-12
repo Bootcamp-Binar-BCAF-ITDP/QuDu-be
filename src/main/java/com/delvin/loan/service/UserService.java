@@ -80,12 +80,6 @@ public class UserService {
             user.setIsActive(request.getIsActive());
         }
 
-        if (request.getPassword() != null &&
-                !request.getPassword().isBlank()) {
-
-            user.setPassword(request.getPassword());
-        }
-
         User savedUser = userRepository.save(user);
 
         return toResponse(savedUser);

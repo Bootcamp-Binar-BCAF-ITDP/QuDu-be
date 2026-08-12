@@ -54,8 +54,7 @@ public class UserController {
             @RequestBody UserRequest request) {
 
         try {
-
-            UserResponse response = userService.updateUser(id, request);
+            userService.updateUser(id, request);
 
             return ResponseUtil.success("User updated successfully", null);
 
@@ -69,7 +68,6 @@ public class UserController {
     public ResponseEntity<ApiResponse<Object>> deleteUser(@PathVariable String id) {
 
         try {
-
             userService.deleteUser(id);
 
             return ResponseUtil.success("User deactivated successfully", null);
