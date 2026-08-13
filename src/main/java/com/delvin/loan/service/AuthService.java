@@ -2,6 +2,7 @@ package com.delvin.loan.service;
 
 import com.delvin.loan.common.AccountType;
 import com.delvin.loan.dto.response.auth.RegisterResponse;
+import com.delvin.loan.dto.response.menu.MenuResponse;
 import com.delvin.loan.model.*;
 import com.delvin.loan.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,8 @@ import com.delvin.loan.dto.request.auth.ForgotPasswordRequest;
 import com.delvin.loan.dto.request.auth.ResetPasswordRequest;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -257,11 +260,14 @@ public class AuthService {
                 java.time.Instant.now()
         );
 
+        List<MenuResponse> menus = getUserMenus(appUser.getUserId());
+
         return AuthResponse.builder()
                 .token(token)
                 .userId(appUser.getUserId())
                 .username(appUser.getUsername())
                 .role(appUser.getRole())
+                .menus(menus)
                 .build();
     }
 
@@ -351,6 +357,29 @@ public class AuthService {
         resetToken.setUsed(true);
 
         passwordResetTokenRepository.save(resetToken);
+    }
+
+    private List<MenuResponse> getUserMenus(String userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("User tidak ditemukan")
+                );
+
+        if (user.getRole() == null) {
+            return Collections.emptyList();
+        }
+
+        return user.getRole()
+                .getRoleMenus()
+                .stream()
+                .filter(roleMenu -> roleMenu.getMenu() != null)
+                .map(roleMenu -> MenuResponse.builder()
+                        .menuId(roleMenu.getMenu().getMenuId())
+                        .menuName(roleMenu.getMenu().getMenuName())
+                        .build()
+                )
+                .toList();
     }
 
     private AppUser toAppUser(User user) {

@@ -1,6 +1,9 @@
 package com.delvin.loan.dto.response.auth;
 
+import com.delvin.loan.dto.response.menu.MenuResponse;
 import lombok.*;
+
+import java.util.List;
 
 @Getter
 @Setter
@@ -13,4 +16,5 @@ public class AuthResponse {
     private String userId;
     private String username;
     private String role;
+    private List<MenuResponse> menus;
 }
