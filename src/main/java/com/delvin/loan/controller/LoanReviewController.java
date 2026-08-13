@@ -20,10 +20,6 @@ public class LoanReviewController {
     }
 
     /** Marketing user accepts or rejects an application in the CHECKING bucket. */
-    @PostMapping
-    public ResponseEntity<ApiResponse<LoanReviewResponse>> submit(@Valid @RequestBody LoanReviewRequest request) {
-        return ResponseUtil.created("Review submitted", reviewService.submitReview(request));
-    }
 
     @GetMapping("/application/{applicationId}")
     public ResponseEntity<ApiResponse<LoanReviewResponse>> get(@PathVariable String applicationId) {

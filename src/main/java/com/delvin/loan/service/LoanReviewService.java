@@ -31,32 +31,53 @@ public class LoanReviewService {
     }
 
     @Transactional
-    public LoanReviewResponse submitReview(LoanReviewRequest request) {
-        String recommendation = normalizeRecommendation(request.getRecommendation());
+    public LoanReviewResponse submitReview(String marketingUserId, LoanReviewRequest request) {
 
-        User marketing = applicationService.getUserWithRole(request.getMarketingUserId(), RoleName.MARKETING);
-        LoanApplication application = applicationService.getApplicationOrThrow(request.getApplicationId());
+        String recommendation =
+                normalizeRecommendation(request.getRecommendation());
+
+        User marketing =
+                applicationService.getUserWithRole(
+                        marketingUserId,
+                        RoleName.MARKETING
+                );
+
+        LoanApplication application =
+                applicationService.getApplicationOrThrow(
+                        request.getApplicationId()
+                );
 
         if (!LoanStatus.CHECKING.equals(application.getStatus())) {
             throw BusinessException.conflict(
-                    "Application " + application.getApplicationId() + " is not awaiting marketing review (current status: "
-                            + application.getStatus() + ")");
+                    "Application " + application.getApplicationId()
+                            + " is not awaiting marketing review "
+                            + "(current status: " + application.getStatus() + ")"
+            );
         }
-        if (reviewRepository.existsByApplication_ApplicationId(application.getApplicationId())) {
-            throw BusinessException.conflict("Application already has a review.");
+
+        if (reviewRepository.existsByApplication_ApplicationId(
+                application.getApplicationId()
+        )) {
+            throw BusinessException.conflict(
+                    "Application already has a review."
+            );
         }
 
         LoanReview review = new LoanReview();
+
         review.setApplication(application);
         review.setMarketing(marketing);
         review.setRecommendation(recommendation);
         review.setReviewNote(request.getReviewNote());
         review.setUploadedAt(LocalDate.now());
+
         reviewRepository.save(review);
 
-        application.setStatus(RecommendationStatus.ACCEPT.equals(recommendation)
-                ? LoanStatus.PENDING_BRANCH_MANAGER
-                : LoanStatus.REJECTED_BY_MARKETING);
+        application.setStatus(
+                RecommendationStatus.ACCEPT.equals(recommendation)
+                        ? LoanStatus.PENDING_BRANCH_MANAGER
+                        : LoanStatus.REJECTED_BY_MARKETING
+        );
 
         return mapper.toReviewResponse(review);
     }

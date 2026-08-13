@@ -12,9 +12,6 @@ public class BranchManagerDecisionRequest {
     @NotBlank(message = "applicationId is required")
     private String applicationId;
 
-    @NotBlank(message = "branchManagerUserId is required")
-    private String branchManagerUserId;
-
     @NotNull(message = "approve is required")
     private Boolean approve;
 

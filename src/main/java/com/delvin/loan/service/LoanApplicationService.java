@@ -80,11 +80,22 @@ public class LoanApplicationService {
      * the branch of the marketing user who reviewed them (same branch the
      * branch manager belongs to).
      */
-    public List<LoanApplicationResponse> listBranchManagerBucket(String branchManagerUserId) {
-        User branchManager = getUserWithRole(branchManagerUserId, RoleName.BRANCH_MANAGER);
+    public List<LoanApplicationResponse> listBranchManagerBucket(
+            String branchManagerUserId
+    ) {
+
+        User branchManager = getUserWithRole(
+                branchManagerUserId,
+                RoleName.BRANCH_MANAGER
+        );
+
         Integer branchId = requireBranch(branchManager);
+
         return applicationRepository
-                .findByStatusAndReview_Marketing_Branch_BranchId(LoanStatus.PENDING_BRANCH_MANAGER, branchId)
+                .findByStatusAndReview_Marketing_Branch_BranchId(
+                        LoanStatus.PENDING_BRANCH_MANAGER,
+                        branchId
+                )
                 .stream()
                 .map(mapper::toApplicationResponse)
                 .collect(Collectors.toList());
@@ -110,31 +121,50 @@ public class LoanApplicationService {
      * current schema, so it's recorded directly as a status transition.
      */
     @Transactional
-    public LoanApplicationResponse branchManagerDecision(BranchManagerDecisionRequest request) {
-        User branchManager = getUserWithRole(request.getBranchManagerUserId(), RoleName.BRANCH_MANAGER);
+    public LoanApplicationResponse branchManagerDecision(
+            String branchManagerUserId,
+            BranchManagerDecisionRequest request
+    ) {
+
+        User branchManager = getUserWithRole(branchManagerUserId, RoleName.BRANCH_MANAGER);
+
         LoanApplication application = getApplicationOrThrow(request.getApplicationId());
 
         if (!LoanStatus.PENDING_BRANCH_MANAGER.equals(application.getStatus())) {
             throw BusinessException.conflict(
-                    "Application " + application.getApplicationId() + " is not awaiting branch manager decision (current status: "
-                            + application.getStatus() + ")");
+                    "Application " + application.getApplicationId()
+                            + " is not awaiting branch manager decision "
+                            + "(current status: " + application.getStatus() + ")"
+            );
+        }
+
+        if (application.getReview() == null || application.getReview().getMarketing() == null) {
+            throw BusinessException.badRequest(
+                    "Application does not have a valid marketing review"
+            );
         }
 
         Integer applicationBranchId = requireBranch(application.getReview().getMarketing());
-        if (!applicationBranchId.equals(branchManager.getBranch() != null ? branchManager.getBranch().getBranchId() : null)) {
-            throw BusinessException.forbidden("This application belongs to a different branch.");
+
+        Integer branchManagerBranchId = requireBranch(branchManager);
+
+        if (!applicationBranchId.equals(branchManagerBranchId)) {
+            throw BusinessException.forbidden(
+                    "This application belongs to a different branch."
+            );
         }
 
         application.setStatus(Boolean.TRUE.equals(request.getApprove())
-                ? LoanStatus.PENDING_BACK_OFFICE
-                : LoanStatus.REJECTED_BY_BRANCH_MANAGER);
+                        ? LoanStatus.PENDING_BACK_OFFICE
+                        : LoanStatus.REJECTED_BY_BRANCH_MANAGER
+        );
 
         applicationRepository.save(application);
+
         return mapper.toApplicationResponse(application);
     }
 
     // ---- internal helpers, also used by the other services ----
-
     LoanApplication getApplicationOrThrow(String applicationId) {
         return applicationRepository.findById(applicationId)
                 .orElseThrow(() -> BusinessException.notFound("Loan application not found: " + applicationId));

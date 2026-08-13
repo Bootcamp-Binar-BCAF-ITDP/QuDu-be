@@ -157,6 +157,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(request -> request
                         .requestMatchers(SecurityRoutes.PUBLIC).permitAll()
                         .requestMatchers(SecurityRoutes.SUPERADMIN).hasAnyRole(RoleName.SUPERADMIN)
+                        .requestMatchers(SecurityRoutes.BRANCH_MANAGER).hasAnyRole(RoleName.BRANCH_MANAGER)
+                        .requestMatchers(SecurityRoutes.BACKOFFICE).hasAnyRole(RoleName.BACK_OFFICE)
+                        .requestMatchers(SecurityRoutes.MARKETING).hasAnyRole(RoleName.MARKETING)
 
                         .anyRequest()
                         .authenticated()

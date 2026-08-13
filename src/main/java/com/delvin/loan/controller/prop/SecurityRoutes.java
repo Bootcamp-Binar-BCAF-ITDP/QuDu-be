@@ -22,13 +22,14 @@ public class SecurityRoutes {
     // MARKETING
     public static final String[] MARKETING = {
             "/api/loan-reviews/**",
+            "/api/marketing"
 //            "/api/loan-applications/{applicationId}/documents"
     };
 
     // BRANCH MANAGER
     public static final String[] BRANCH_MANAGER = {
             "/api/loan-approvals/**",
-            "/api/loan-applications/bucket/branch-manager",
+            "/api/bm"
 //            "/api/loan-applications/{applicationId}/documents"
     };
 
@@ -36,8 +37,7 @@ public class SecurityRoutes {
     public static final String[] BACKOFFICE = {
             "/api/loan-verifications/**",
             "/api/loan-disbursements/**",
-            "/api/loan-applications/bucket/back-office",
-            "/bucket/back-office",
+            "/api/bo",
 //            "/api/loan-applications/{applicationId}/documents",
             "/api/loan-verifications/**"
     };
