@@ -44,8 +44,7 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request
     ) {
 
-        AuthResponse response =
-                authService.login(request);
+        AuthResponse response = authService.login(request);
 
         return ResponseEntity.ok(response);
     }

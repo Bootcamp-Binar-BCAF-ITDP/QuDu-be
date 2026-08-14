@@ -7,6 +7,7 @@ import com.delvin.loan.dto.request.loanreq.LoanApplicationCreateRequest;
 import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
 import com.delvin.loan.service.LoanApplicationService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,7 +27,27 @@ public class LoanApplicationController {
     @PostMapping
     public ResponseEntity<ApiResponse<LoanApplicationResponse>> create(
             @Valid @RequestBody LoanApplicationCreateRequest request) {
-        return ResponseUtil.created("Loan application submitted", applicationService.createApplication(request));
+
+        try {
+            applicationService.createApplication(request);
+
+            return ResponseUtil.created("Loan application submitted", null);
+        } catch (RuntimeException e) {
+            return ResponseUtil.error(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            return ResponseUtil.error(HttpStatus.INTERNAL_SERVER_ERROR, "An Unexpected error occured");
+        }
+    }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<LoanApplicationResponse>>> getAllApplication() {
+        List<LoanApplicationResponse> applicationList = applicationService.getAllApplication();
+
+        try {
+            return ResponseUtil.success("Loan Application retrieved", applicationList);
+        } catch (Exception e) {
+            return ResponseUtil.error(HttpStatus.INTERNAL_SERVER_ERROR, "Error acquired");
+        }
     }
 
     @GetMapping("/{applicationId}")

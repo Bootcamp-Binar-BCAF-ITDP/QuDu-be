@@ -8,9 +8,11 @@ import com.delvin.loan.dto.response.loanresp.*;
 import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.Customer;
 import com.delvin.loan.model.LoanApplication;
+import com.delvin.loan.model.LoanDecision;
 import com.delvin.loan.model.User;
 import com.delvin.loan.repository.CustomerRepository;
 import com.delvin.loan.repository.LoanApplicationRepository;
+import com.delvin.loan.repository.LoanDecisionRepository;
 import com.delvin.loan.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,15 +29,17 @@ public class LoanApplicationService {
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final LoanMapper mapper;
+    private final LoanDecisionRepository loanDecisionRepository;
 
     public LoanApplicationService(LoanApplicationRepository applicationRepository,
-                                   CustomerRepository customerRepository,
-                                   UserRepository userRepository,
-                                   LoanMapper mapper) {
+                                  CustomerRepository customerRepository,
+                                  UserRepository userRepository,
+                                  LoanMapper mapper, LoanDecisionRepository loanDecisionRepository) {
         this.applicationRepository = applicationRepository;
         this.customerRepository = customerRepository;
         this.userRepository = userRepository;
         this.mapper = mapper;
+        this.loanDecisionRepository = loanDecisionRepository;
     }
 
     /** Step 1: customer creates the application. Documents are uploaded separately. */
@@ -56,6 +60,13 @@ public class LoanApplicationService {
 
         applicationRepository.save(application);
         return mapper.toApplicationResponse(application);
+    }
+
+    public List<LoanApplicationResponse> getAllApplication() {
+        return applicationRepository.findAll()
+                .stream()
+                .map(mapper:: toApplicationResponse)
+                .toList();
     }
 
     public LoanApplicationResponse getApplication(String applicationId) {
@@ -126,35 +137,67 @@ public class LoanApplicationService {
             BranchManagerDecisionRequest request
     ) {
 
-        User branchManager = getUserWithRole(branchManagerUserId, RoleName.BRANCH_MANAGER);
+        User branchManager = getUserWithRole(
+                branchManagerUserId,
+                RoleName.BRANCH_MANAGER
+        );
 
-        LoanApplication application = getApplicationOrThrow(request.getApplicationId());
+        LoanApplication application =
+                getApplicationOrThrow(request.getApplicationId());
 
         if (!LoanStatus.PENDING_BRANCH_MANAGER.equals(application.getStatus())) {
             throw BusinessException.conflict(
-                    "Application " + application.getApplicationId()
-                            + " is not awaiting branch manager decision "
-                            + "(current status: " + application.getStatus() + ")"
+                    "Application is not awaiting branch manager decision"
             );
         }
 
-        if (application.getReview() == null || application.getReview().getMarketing() == null) {
+        if (loanDecisionRepository
+                .existsByApplication_ApplicationId(application.getApplicationId())) {
+
+            throw BusinessException.conflict(
+                    "Application already has a branch manager decision"
+            );
+        }
+
+        if (application.getReview() == null ||
+                application.getReview().getMarketing() == null) {
+
             throw BusinessException.badRequest(
                     "Application does not have a valid marketing review"
             );
         }
 
-        Integer applicationBranchId = requireBranch(application.getReview().getMarketing());
+        Integer applicationBranchId =
+                requireBranch(application.getReview().getMarketing());
 
-        Integer branchManagerBranchId = requireBranch(branchManager);
+        Integer branchManagerBranchId =
+                requireBranch(branchManager);
 
         if (!applicationBranchId.equals(branchManagerBranchId)) {
             throw BusinessException.forbidden(
-                    "This application belongs to a different branch."
+                    "This application belongs to a different branch"
             );
         }
 
-        application.setStatus(Boolean.TRUE.equals(request.getApprove())
+        LoanDecision decision =
+                new LoanDecision();
+
+        decision.setApplication(application);
+        decision.setBranchManager(branchManager);
+
+        decision.setDecision(
+                Boolean.TRUE.equals(request.getApprove())
+                        ? "APPROVED"
+                        : "REJECTED"
+        );
+
+        decision.setDecisionNote(request.getNote());
+        decision.setDecidedAt(LocalDate.now());
+
+        loanDecisionRepository.save(decision);
+
+        application.setStatus(
+                Boolean.TRUE.equals(request.getApprove())
                         ? LoanStatus.PENDING_BACK_OFFICE
                         : LoanStatus.REJECTED_BY_BRANCH_MANAGER
         );

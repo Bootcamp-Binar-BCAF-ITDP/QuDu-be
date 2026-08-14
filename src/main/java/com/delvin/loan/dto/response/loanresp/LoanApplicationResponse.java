@@ -20,8 +20,14 @@ public class LoanApplicationResponse {
     private BigDecimal income;
     private String status;
     private LocalDate submissionDate;
+
     private List<LoanDocumentResponse> documents;
+
     private LoanReviewResponse review;
+
+    private LoanDecisionResponse bmdecision;
+
     private List<LoanVerificationResponse> verifications;
+
     private LoanDisbursementResponse disbursement;
 }

@@ -8,7 +8,7 @@ public class SecurityRoutes {
     // PUBLIC
     public static final String[] PUBLIC = {
             "/api/auth/**",
-            "/api/loan-applications/{applicationId}/documents"
+            "/api/loan-applications/**"
     };
 
     // SUPER ADMIN
@@ -23,14 +23,12 @@ public class SecurityRoutes {
     public static final String[] MARKETING = {
             "/api/loan-reviews/**",
             "/api/marketing"
-//            "/api/loan-applications/{applicationId}/documents"
     };
 
     // BRANCH MANAGER
     public static final String[] BRANCH_MANAGER = {
             "/api/loan-approvals/**",
             "/api/bm"
-//            "/api/loan-applications/{applicationId}/documents"
     };
 
     // BACKOFFICE
@@ -38,7 +36,6 @@ public class SecurityRoutes {
             "/api/loan-verifications/**",
             "/api/loan-disbursements/**",
             "/api/bo",
-//            "/api/loan-applications/{applicationId}/documents",
             "/api/loan-verifications/**"
     };
 }

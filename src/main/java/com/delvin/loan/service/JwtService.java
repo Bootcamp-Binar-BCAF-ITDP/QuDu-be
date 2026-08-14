@@ -1,5 +1,6 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.model.AppCustomer;
 import com.delvin.loan.model.AppUser;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtBuilder;
@@ -38,20 +39,39 @@ public class JwtService {
         this.ttl = Duration.ofMinutes(ttlMinutes);
     }
 
+    // =========================
+    // USER JWT
+    // =========================
     public String issue(
             AppUser user,
             Instant issuedAt
     ) {
 
-        return builder(user, issuedAt)
+        return userBuilder(user, issuedAt)
                 .expiration(
-                        Date.from(
-                                issuedAt.plus(ttl)
-                        )
+                        Date.from(issuedAt.plus(ttl))
                 )
                 .compact();
     }
 
+    // =========================
+    // CUSTOMER JWT
+    // =========================
+    public String issue(
+            AppCustomer customer,
+            Instant issuedAt
+    ) {
+
+        return customerBuilder(customer, issuedAt)
+                .expiration(
+                        Date.from(issuedAt.plus(ttl))
+                )
+                .compact();
+    }
+
+    // =========================
+    // PARSE TOKEN
+    // =========================
     public Claims parse(String token) {
 
         return Jwts.parser()
@@ -61,7 +81,10 @@ public class JwtService {
                 .getPayload();
     }
 
-    private JwtBuilder builder(
+    // =========================
+    // USER TOKEN BUILDER
+    // =========================
+    private JwtBuilder userBuilder(
             AppUser user,
             Instant issuedAt
     ) {
@@ -71,7 +94,25 @@ public class JwtService {
                 .claim("userId", user.getUserId())
                 .claim("username", user.getUsername())
                 .claim("role", user.getRole())
-                .claim("accountType", user.getAccountType().name())
+                .claim("accountType", "USER")
+                .issuedAt(Date.from(issuedAt))
+                .signWith(key);
+    }
+
+    // =========================
+    // CUSTOMER TOKEN BUILDER
+    // =========================
+    private JwtBuilder customerBuilder(
+            AppCustomer customer,
+            Instant issuedAt
+    ) {
+
+        return Jwts.builder()
+                .subject(customer.getEmail())
+                .claim("customerId", customer.getCustomerId())
+                .claim("username", customer.getEmail())
+                .claim("role", "CUSTOMER")
+                .claim("accountType", "CUSTOMER")
                 .issuedAt(Date.from(issuedAt))
                 .signWith(key);
     }

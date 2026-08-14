@@ -244,30 +244,100 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
 
-        Authentication authentication =
-                authenticationManager.authenticate(
-                        new UsernamePasswordAuthenticationToken(
-                                request.getUsernameOrEmail(),
-                                request.getPassword()
+        return switch (request.getAccountType()) {
+
+            case USER -> loginUser(request);
+
+            case CUSTOMER -> loginCustomer(request);
+        };
+    }
+
+    private AuthResponse loginUser(LoginRequest request) {
+
+        User user = userRepository
+                .findByUsernameOrEmail(
+                        request.getUsernameOrEmail(),
+                        request.getUsernameOrEmail()
+                )
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Username atau email tidak ditemukan"
                         )
                 );
 
-        AppUser appUser =
-                (AppUser) authentication.getPrincipal();
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new IllegalArgumentException(
+                    "User tidak aktif"
+            );
+        }
+
+        if (!passwordEncoder.matches(
+                request.getPassword(),
+                user.getPassword()
+        )) {
+            throw new IllegalArgumentException(
+                    "Password salah"
+            );
+        }
+
+        AppUser appUser = toAppUser(user);
 
         String token = jwtService.issue(
                 appUser,
                 java.time.Instant.now()
         );
 
-        List<MenuResponse> menus = getUserMenus(appUser.getUserId());
+        List<MenuResponse> menus =
+                getUserMenus(user.getUserId());
 
         return AuthResponse.builder()
                 .token(token)
-                .userId(appUser.getUserId())
-                .username(appUser.getUsername())
-                .role(appUser.getRole())
+                .userId(user.getUserId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .role(
+                        user.getRole() != null
+                                ? user.getRole().getRoleName()
+                                : null
+                )
                 .menus(menus)
+                .build();
+    }
+
+    private AuthResponse loginCustomer(LoginRequest request) {
+
+        Customer customer = customerRepository
+                .findByEmail(request.getUsernameOrEmail())
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Email customer tidak ditemukan"
+                        )
+                );
+
+        if (!passwordEncoder.matches(
+                request.getPassword(),
+                customer.getPassword()
+        )) {
+            throw new IllegalArgumentException(
+                    "Password salah"
+            );
+        }
+
+        AppCustomer appCustomer = toAppCustomer(customer);
+
+        String token = jwtService.issue(
+                appCustomer,
+                java.time.Instant.now()
+        );
+
+        return AuthResponse.builder()
+                .token(token)
+                .userId(customer.getCustomerId())
+                .username(customer.getEmail())
+                .email(customer.getEmail())
+                .fullName(customer.getCustomerName())
+                .menus(Collections.emptyList())
                 .build();
     }
 
@@ -353,7 +423,6 @@ public class AuthService {
 
         userRepository.save(user);
 
-        // Mark token as used
         resetToken.setUsed(true);
 
         passwordResetTokenRepository.save(resetToken);
@@ -397,5 +466,28 @@ public class AuthService {
         }
 
         return appUser;
+    }
+
+    private AppCustomer toAppCustomer(Customer customer) {
+
+        AppCustomer appCustomer = new AppCustomer();
+
+        appCustomer.setCustomerId(
+                customer.getCustomerId()
+        );
+
+        appCustomer.setEmail(
+                customer.getEmail()
+        );
+
+        appCustomer.setPassword(
+                customer.getPassword()
+        );
+
+        appCustomer.setFullName(
+                customer.getCustomerName()
+        );
+
+        return appCustomer;
     }
 }

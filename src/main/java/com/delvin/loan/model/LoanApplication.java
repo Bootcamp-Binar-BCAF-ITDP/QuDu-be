@@ -46,6 +46,9 @@ public class LoanApplication {
     @OneToOne(mappedBy = "application")
     private LoanReview review;
 
+    @OneToOne(mappedBy = "application")
+    private LoanDecision branchManagerDecision;
+
     // NOTE: added - mirrors the new LoanVerification.application link so a
     // back-office user can see every call attempt (a customer may need to
     // be re-called after "Nada Sambung Tidak Diangkat" / "Salah Sambung").

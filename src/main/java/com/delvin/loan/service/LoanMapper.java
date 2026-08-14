@@ -82,6 +82,26 @@ public class LoanMapper {
         );
     }
 
+    public LoanDecisionResponse toDecisionResponse(
+            LoanDecision decision
+    ) {
+
+        if (decision == null) {
+            return null;
+        }
+
+        return new LoanDecisionResponse(
+                decision.getDecisionId(),
+                decision.getApplication() != null
+                        ? decision.getApplication().getApplicationId()
+                        : null,
+                toUserSummary(decision.getBranchManager()),
+                decision.getDecision(),
+                decision.getDecisionNote(),
+                decision.getDecidedAt()
+        );
+    }
+
     public LoanApplicationResponse toApplicationResponse(LoanApplication app) {
         if (app == null) return null;
 
@@ -104,6 +124,7 @@ public class LoanMapper {
                 app.getSubmissionDate(),
                 documents,
                 toReviewResponse(app.getReview()),
+                toDecisionResponse(app.getBranchManagerDecision()),
                 verifications,
                 toDisbursementResponse(app.getDisbursement())
         );

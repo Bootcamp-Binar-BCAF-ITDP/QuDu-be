@@ -15,6 +15,5 @@ public class BranchManagerDecisionRequest {
     @NotNull(message = "approve is required")
     private Boolean approve;
 
-    /** Optional note explaining the decision. */
     private String note;
 }
