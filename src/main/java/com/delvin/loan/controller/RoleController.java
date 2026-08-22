@@ -32,17 +32,29 @@ public class RoleController {
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(defaultValue = "roleId") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir) {
+            @RequestParam(defaultValue = "asc") String sortDir,
+            @RequestParam(defaultValue = "") String search) {
 
         Pageable pageable = PaginationUtil.build(page, size, sortBy, sortDir, SORTABLE_FIELDS, "roleId");
 
-        PageResponse<RoleResponse> roles = roleService.getAllRoles(pageable);
+        PageResponse<RoleResponse> roles = roleService.getAllRoles(search, pageable);
 
         if (roles.getTotalElements() == 0) {
-            return ResponseUtil.success("No role data found", roles);
+
+            String message = search.isBlank()
+                    ? "No role data found"
+                    : "No role matches your search";
+
+            return ResponseUtil.success(message, roles);
         }
 
         return ResponseUtil.success("Get roles successfully", roles);
+    }
+
+    @GetMapping("/options")
+    public ResponseEntity<ApiResponse<List<RoleResponse>>> getRoleOptions() {
+
+        return ResponseUtil.success("Role options retrieved", roleService.getRoleOptions());
     }
 
     @GetMapping("/{id}")

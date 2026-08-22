@@ -9,6 +9,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class BranchService {
 
@@ -18,11 +20,19 @@ public class BranchService {
         this.branchRepository = branchRepository;
     }
 
-    public PageResponse<BranchResponse> getAllBranches(Pageable pageable) {
+    public PageResponse<BranchResponse> getAllBranches(String search, Pageable pageable) {
 
-        Page<Branch> branches = branchRepository.findByIsActive(true, pageable);
+        Page<Branch> branches = branchRepository.searchActive(toKeyword(search), pageable);
 
         return PageResponse.of(branches, this::toResponse);
+    }
+
+    public List<BranchResponse> getBranchOptions() {
+
+        return branchRepository.findByIsActiveOrderByBranchNameAsc(true)
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public BranchResponse getBranchById(String branchCode) {
@@ -65,6 +75,15 @@ public class BranchService {
                 .orElseThrow(() -> new RuntimeException("Branch not found"));
         branch.setIsActive(false);
         return toResponse(branchRepository.save(branch));
+    }
+
+    private String toKeyword(String search) {
+
+        if (search == null || search.isBlank()) {
+            return "%%";
+        }
+
+        return "%" + search.trim().toLowerCase() + "%";
     }
 
     private BranchResponse toResponse(Branch branch) {

@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-public class RoleService{
+public class RoleService {
 
     private final RoleRepository roleRepository;
     private final MenuRepository menuRepository;
@@ -34,15 +34,53 @@ public class RoleService{
         this.roleMenuRepository = roleMenuRepository;
     }
 
-    @Transactional
-    public PageResponse<RoleResponse> getAllRoles(Pageable pageable) {
+    // readOnly transaction so the lazy roleMenus collection loads inside a session
+    // instead of relying on open-session-in-view.
+    @Transactional(readOnly = true)
+    public PageResponse<RoleResponse> getAllRoles(String search, Pageable pageable) {
 
-        Page<Role> roles = roleRepository.findAll(pageable);
+        Page<Role> roles = roleRepository.search(toKeyword(search), pageable);
 
         return PageResponse.of(roles, this::toResponse);
     }
 
-    @Transactional
+    /**
+     * Normalises the raw search term into a LIKE pattern.
+     * Null or blank -> "%%", which matches everything.
+     */
+    private String toKeyword(String search) {
+
+        if (search == null || search.isBlank()) {
+            return "%%";
+        }
+
+        return "%" + search.trim().toLowerCase() + "%";
+    }
+
+    /**
+     * Every role, unpaginated — for select inputs.
+     * Skips the menus mapping so a dropdown does not drag the whole
+     * role_menu graph along with it.
+     */
+    @Transactional(readOnly = true)
+    public List<RoleResponse> getRoleOptions() {
+
+        return roleRepository.findAllByOrderByRoleNameAsc()
+                .stream()
+                .map(role -> {
+
+                    RoleResponse response = new RoleResponse();
+
+                    response.setRoleId(role.getRoleId());
+                    response.setRoleName(role.getRoleName());
+                    response.setDescription(role.getDescription());
+
+                    return response;
+                })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public RoleResponse getRoleById(Integer id) {
 
         Role role = roleRepository.findById(id)

@@ -32,14 +32,20 @@ public class MenuController {
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(defaultValue = "menuId") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir) {
+            @RequestParam(defaultValue = "asc") String sortDir,
+            @RequestParam(defaultValue = "") String search) {
 
         Pageable pageable = PaginationUtil.build(page, size, sortBy, sortDir, SORTABLE_FIELDS, "menuId");
 
-        PageResponse<MenuResponse> menus = menuService.getAllMenus(pageable);
+        PageResponse<MenuResponse> menus = menuService.getAllMenus(search, pageable);
 
         if (menus.getTotalElements() == 0) {
-            return ResponseUtil.success("No menu data found", menus);
+
+            String message = search.isBlank()
+                    ? "No menu data found"
+                    : "No menu matches your search";
+
+            return ResponseUtil.success(message, menus);
         }
 
         return ResponseUtil.success("Menus retrieved successfully", menus);
@@ -60,13 +66,19 @@ public class MenuController {
         }
     }
 
+    @GetMapping("/options")
+    public ResponseEntity<ApiResponse<List<MenuResponse>>> getMenuOptions() {
+
+        return ResponseUtil.success("Menu options retrieved", menuService.getMenuOptions());
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<MenuResponse>> createMenu(
             @RequestBody MenuRequest request) {
 
         try {
 
-            MenuResponse response = menuService.createMenu(request);
+            menuService.createMenu(request);
 
             return ResponseUtil.created("Menu created successfully", null);
 
@@ -90,7 +102,7 @@ public class MenuController {
 
         try {
 
-            MenuResponse response = menuService.updateMenu(id, request);
+            menuService.updateMenu(id, request);
 
             return ResponseUtil.success("Menu updated successfully", null);
 

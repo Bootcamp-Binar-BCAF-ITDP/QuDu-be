@@ -32,14 +32,20 @@ public class UserController {
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(defaultValue = "username") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir) {
+            @RequestParam(defaultValue = "asc") String sortDir,
+            @RequestParam(defaultValue = "") String search) {
 
         Pageable pageable = PaginationUtil.build(page, size, sortBy, sortDir, SORTABLE_FIELDS, "username");
 
-        PageResponse<UserResponse> users = userService.getAllUsers(pageable);
+        PageResponse<UserResponse> users = userService.getAllUsers(search, pageable);
 
         if (users.getTotalElements() == 0) {
-            return ResponseUtil.success("No user data found", users);
+
+            String message = search.isBlank()
+                    ? "No user data found"
+                    : "No user matches your search";
+
+            return ResponseUtil.success(message, users);
         }
 
         return ResponseUtil.success("Users retrieved successfully", users);

@@ -31,9 +31,10 @@ public class UserService {
         this.roleRepository = roleRepository;
     }
 
-    @Transactional
-    public PageResponse<UserResponse> getAllUsers(Pageable pageable) {
-        Page<User> users = userRepository.findAll(pageable);
+    @Transactional(readOnly = true)
+    public PageResponse<UserResponse> getAllUsers(String search, Pageable pageable) {
+
+        Page<User> users = userRepository.search(toKeyword(search), pageable);
 
         return PageResponse.of(users, this::toResponse);
     }
@@ -93,6 +94,15 @@ public class UserService {
         user.setIsActive(false);
 
         userRepository.save(user);
+    }
+
+    private String toKeyword(String search) {
+
+        if (search == null || search.isBlank()) {
+            return "%%";
+        }
+
+        return "%" + search.trim().toLowerCase() + "%";
     }
 
     private UserResponse toResponse(User user) {

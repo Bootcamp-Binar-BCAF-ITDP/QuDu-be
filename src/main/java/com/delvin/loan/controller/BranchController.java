@@ -31,14 +31,20 @@ public class BranchController {
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "10") Integer size,
             @RequestParam(defaultValue = "branchId") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir) {
+            @RequestParam(defaultValue = "asc") String sortDir,
+            @RequestParam(defaultValue = "") String search) {
 
         Pageable pageable = PaginationUtil.build(page, size, sortBy, sortDir, SORTABLE_FIELDS, "branchId");
 
-        PageResponse<BranchResponse> branches = branchService.getAllBranches(pageable);
+        PageResponse<BranchResponse> branches = branchService.getAllBranches(search, pageable);
 
-        if (branches.isEmpty()) {
-            return ResponseUtil.success("No branch data found", branches);
+        if (branches.getTotalElements() == 0) {
+
+            String message = search.isBlank()
+                    ? "No branch data found"
+                    : "No branch matches your search";
+
+            return ResponseUtil.success(message, branches);
         }
 
         return ResponseUtil.success("Get branch successfully", branches);
@@ -58,6 +64,12 @@ public class BranchController {
             return ResponseUtil.error(HttpStatus.NOT_FOUND, e.getMessage());
 
         }
+    }
+
+    @GetMapping("/options")
+    public ResponseEntity<ApiResponse<List<BranchResponse>>> getBranchOptions() {
+
+        return ResponseUtil.success("Branch options retrieved", branchService.getBranchOptions());
     }
 
     @PostMapping

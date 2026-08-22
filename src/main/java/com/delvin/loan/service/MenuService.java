@@ -10,21 +10,32 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class MenuService {
+
     private final MenuRepository menuRepository;
 
     public MenuService(MenuRepository menuRepository) {
         this.menuRepository = menuRepository;
     }
 
-    public PageResponse<MenuResponse> getAllMenus(Pageable pageable) {
+    public PageResponse<MenuResponse> getAllMenus(String search, Pageable pageable) {
 
-        Page<Menu> menus = menuRepository.findAll(pageable);
+        String keyword = (search == null) ? "" : search.trim();
+
+        Page<Menu> menus = menuRepository.findByMenuNameContainingIgnoreCase(keyword, pageable);
 
         return PageResponse.of(menus, this::toResponse);
+    }
+
+    /** Every menu, unpaginated — for the role modal's access list. */
+    public List<MenuResponse> getMenuOptions() {
+
+        return menuRepository.findAllByOrderByMenuNameAsc()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     public MenuResponse getMenuById(Integer id) {
