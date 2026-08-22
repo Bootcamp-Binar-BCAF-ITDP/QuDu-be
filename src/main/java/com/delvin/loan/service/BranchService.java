@@ -1,13 +1,13 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.dto.request.branch.BranchRequest;
 import com.delvin.loan.dto.response.branch.BranchResponse;
 import com.delvin.loan.model.Branch;
 import com.delvin.loan.repository.BranchRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class BranchService {
@@ -18,12 +18,11 @@ public class BranchService {
         this.branchRepository = branchRepository;
     }
 
-    public List<BranchResponse> getAllBranches() {
+    public PageResponse<BranchResponse> getAllBranches(Pageable pageable) {
 
-        return branchRepository.findByIsActiveOrderByBranchIdAsc(true)
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+        Page<Branch> branches = branchRepository.findByIsActive(true, pageable);
+
+        return PageResponse.of(branches, this::toResponse);
     }
 
     public BranchResponse getBranchById(String branchCode) {

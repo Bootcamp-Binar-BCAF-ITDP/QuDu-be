@@ -1,5 +1,6 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.dto.request.user.UserRequest;
 import com.delvin.loan.dto.response.user.UserResponse;
 import com.delvin.loan.model.Branch;
@@ -8,11 +9,10 @@ import com.delvin.loan.model.User;
 import com.delvin.loan.repository.BranchRepository;
 import com.delvin.loan.repository.RoleRepository;
 import com.delvin.loan.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -31,12 +31,11 @@ public class UserService {
         this.roleRepository = roleRepository;
     }
 
-    public List<UserResponse> getAllUsers() {
+    @Transactional
+    public PageResponse<UserResponse> getAllUsers(Pageable pageable) {
+        Page<User> users = userRepository.findAll(pageable);
 
-        return userRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+        return PageResponse.of(users, this::toResponse);
     }
 
     public UserResponse getUserById(String id) {

@@ -1,9 +1,12 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.dto.request.menu.MenuRequest;
 import com.delvin.loan.dto.response.menu.MenuResponse;
 import com.delvin.loan.model.Menu;
 import com.delvin.loan.repository.MenuRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,12 +20,11 @@ public class MenuService {
         this.menuRepository = menuRepository;
     }
 
-    public List<MenuResponse> getAllMenus() {
+    public PageResponse<MenuResponse> getAllMenus(Pageable pageable) {
 
-        return menuRepository.findAllByOrderByMenuIdAsc()
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+        Page<Menu> menus = menuRepository.findAll(pageable);
+
+        return PageResponse.of(menus, this::toResponse);
     }
 
     public MenuResponse getMenuById(Integer id) {

@@ -9,5 +9,4 @@ import java.util.List;
 @Repository
 public interface MenuRepository extends JpaRepository<Menu, Integer> {
 
-    List<Menu> findAllByOrderByMenuIdAsc();
 }

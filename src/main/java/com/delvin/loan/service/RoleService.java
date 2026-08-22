@@ -1,5 +1,6 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.dto.request.role.RoleRequest;
 import com.delvin.loan.dto.response.menu.MenuResponse;
 import com.delvin.loan.dto.response.role.RoleResponse;
@@ -9,6 +10,8 @@ import com.delvin.loan.model.RoleMenu;
 import com.delvin.loan.repository.MenuRepository;
 import com.delvin.loan.repository.RoleMenuRepository;
 import com.delvin.loan.repository.RoleRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,14 +34,15 @@ public class RoleService{
         this.roleMenuRepository = roleMenuRepository;
     }
 
-    public List<RoleResponse> getAllRoles() {
+    @Transactional
+    public PageResponse<RoleResponse> getAllRoles(Pageable pageable) {
 
-        return roleRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+        Page<Role> roles = roleRepository.findAll(pageable);
+
+        return PageResponse.of(roles, this::toResponse);
     }
 
+    @Transactional
     public RoleResponse getRoleById(Integer id) {
 
         Role role = roleRepository.findById(id)

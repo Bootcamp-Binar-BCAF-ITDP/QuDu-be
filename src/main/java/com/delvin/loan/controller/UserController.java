@@ -1,19 +1,25 @@
 package com.delvin.loan.controller;
 
 import com.delvin.loan.common.ApiResponse;
+import com.delvin.loan.common.PageResponse;
+import com.delvin.loan.common.PaginationUtil;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.user.UserRequest;
 import com.delvin.loan.dto.response.user.UserResponse;
 import com.delvin.loan.service.UserService;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
+
+    private static final Set<String> SORTABLE_FIELDS = Set.of("userId", "username", "email", "fullName", "phoneNumber", "isActive", "branch.branchName", "role.roleName");
 
     private final UserService userService;
 
@@ -22,11 +28,17 @@ public class UserController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers() {
+    public ResponseEntity<ApiResponse<PageResponse<UserResponse>>> getAllUsers(
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "username") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
 
-        List<UserResponse> users = userService.getAllUsers();
+        Pageable pageable = PaginationUtil.build(page, size, sortBy, sortDir, SORTABLE_FIELDS, "username");
 
-        if (users.isEmpty()) {
+        PageResponse<UserResponse> users = userService.getAllUsers(pageable);
+
+        if (users.getTotalElements() == 0) {
             return ResponseUtil.success("No user data found", users);
         }
 

@@ -1,19 +1,26 @@
 package com.delvin.loan.controller;
 
 import com.delvin.loan.common.ApiResponse;
+import com.delvin.loan.common.PageResponse;
+import com.delvin.loan.common.PaginationUtil;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.role.RoleRequest;
 import com.delvin.loan.dto.response.role.RoleResponse;
 import com.delvin.loan.service.RoleService;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
-@RequestMapping("api/roles")
+@RequestMapping("/api/roles")
 public class RoleController {
+
+    private static final Set<String> SORTABLE_FIELDS = Set.of("roleId", "roleName", "description");
+
     private final RoleService roleService;
 
     public RoleController(RoleService roleService) {
@@ -21,11 +28,17 @@ public class RoleController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<RoleResponse>>> getAllRoles() {
+    public ResponseEntity<ApiResponse<PageResponse<RoleResponse>>> getAllRoles(
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "roleId") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
 
-        List<RoleResponse> roles = roleService.getAllRoles();
+        Pageable pageable = PaginationUtil.build(page, size, sortBy, sortDir, SORTABLE_FIELDS, "roleId");
 
-        if (roles.isEmpty()) {
+        PageResponse<RoleResponse> roles = roleService.getAllRoles(pageable);
+
+        if (roles.getTotalElements() == 0) {
             return ResponseUtil.success("No role data found", roles);
         }
 

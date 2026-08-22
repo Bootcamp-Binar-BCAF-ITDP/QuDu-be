@@ -1,19 +1,24 @@
 package com.delvin.loan.controller;
 
 import com.delvin.loan.common.ApiResponse;
+import com.delvin.loan.common.PageResponse;
+import com.delvin.loan.common.PaginationUtil;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.branch.BranchRequest;
 import com.delvin.loan.dto.response.branch.BranchResponse;
 import com.delvin.loan.service.BranchService;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/branches")
 public class BranchController {
+
+    private static final Set<String> SORTABLE_FIELDS = Set.of("branchId", "branchCode", "branchName", "location", "email", "phoneNumber");
 
     private final BranchService branchService;
 
@@ -22,9 +27,15 @@ public class BranchController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<BranchResponse>>> getAllBranches() {
+    public ResponseEntity<ApiResponse<PageResponse<BranchResponse>>> getAllBranches(
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "branchId") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
 
-        List<BranchResponse> branches = branchService.getAllBranches();
+        Pageable pageable = PaginationUtil.build(page, size, sortBy, sortDir, SORTABLE_FIELDS, "branchId");
+
+        PageResponse<BranchResponse> branches = branchService.getAllBranches(pageable);
 
         if (branches.isEmpty()) {
             return ResponseUtil.success("No branch data found", branches);
