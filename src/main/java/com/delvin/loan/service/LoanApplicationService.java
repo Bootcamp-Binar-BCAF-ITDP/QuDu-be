@@ -1,6 +1,7 @@
 package com.delvin.loan.service;
 
 import com.delvin.loan.common.LoanStatus;
+import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.common.RoleName;
 import com.delvin.loan.dto.request.loanreq.BranchManagerDecisionRequest;
 import com.delvin.loan.dto.request.loanreq.LoanApplicationCreateRequest;
@@ -14,6 +15,7 @@ import com.delvin.loan.repository.CustomerRepository;
 import com.delvin.loan.repository.LoanApplicationRepository;
 import com.delvin.loan.repository.LoanDecisionRepository;
 import com.delvin.loan.repository.UserRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,7 +44,6 @@ public class LoanApplicationService {
         this.loanDecisionRepository = loanDecisionRepository;
     }
 
-    /** Step 1: customer creates the application. Documents are uploaded separately. */
     @Transactional
     public LoanApplicationResponse createApplication(LoanApplicationCreateRequest request) {
         Customer customer = customerRepository.findById(request.getCustomerId())
@@ -62,75 +63,52 @@ public class LoanApplicationService {
         return mapper.toApplicationResponse(application);
     }
 
-    public List<LoanApplicationResponse> getAllApplication() {
-        return applicationRepository.findAll()
-                .stream()
-                .map(mapper:: toApplicationResponse)
-                .toList();
+    public PageResponse<LoanApplicationResponse> getAllApplication(Pageable pageable) {
+        return PageResponse.of(
+                applicationRepository.findAll(pageable),
+                mapper::toApplicationResponse);
     }
 
     public LoanApplicationResponse getApplication(String applicationId) {
         return mapper.toApplicationResponse(getApplicationOrThrow(applicationId));
     }
 
-    public List<LoanApplicationResponse> listByCustomer(String customerId) {
-        return applicationRepository.findByCustomer_CustomerId(customerId).stream()
-                .map(mapper::toApplicationResponse)
-                .collect(Collectors.toList());
+    public PageResponse<LoanApplicationResponse> listByCustomer(String customerId, Pageable pageable) {
+        return PageResponse.of(
+                applicationRepository.findByCustomer_CustomerId(customerId, pageable),
+                mapper::toApplicationResponse);
     }
 
-    /** Bucket for marketing: applications freshly submitted, awaiting review. */
-    public List<LoanApplicationResponse> listMarketingBucket() {
-        return applicationRepository.findByStatus(LoanStatus.CHECKING).stream()
-                .map(mapper::toApplicationResponse)
-                .collect(Collectors.toList());
+    public PageResponse<LoanApplicationResponse> listMarketingBucket(Pageable pageable) {
+        return PageResponse.of(
+                applicationRepository.findByStatus(LoanStatus.CHECKING, pageable),
+                mapper::toApplicationResponse);
     }
 
-    /**
-     * Bucket for a branch manager: applications marketing accepted, scoped to
-     * the branch of the marketing user who reviewed them (same branch the
-     * branch manager belongs to).
-     */
-    public List<LoanApplicationResponse> listBranchManagerBucket(
-            String branchManagerUserId
-    ) {
+    public PageResponse<LoanApplicationResponse> listBranchManagerBucket(
+            String branchManagerUserId, Pageable pageable) {
 
-        User branchManager = getUserWithRole(
-                branchManagerUserId,
-                RoleName.BRANCH_MANAGER
-        );
-
+        User branchManager = getUserWithRole(branchManagerUserId, RoleName.BRANCH_MANAGER);
         Integer branchId = requireBranch(branchManager);
 
-        return applicationRepository
-                .findByStatusAndReview_Marketing_Branch_BranchId(
-                        LoanStatus.PENDING_BRANCH_MANAGER,
-                        branchId
-                )
-                .stream()
-                .map(mapper::toApplicationResponse)
-                .collect(Collectors.toList());
+        return PageResponse.of(
+                applicationRepository.findByStatusAndReview_Marketing_Branch_BranchId(
+                        LoanStatus.PENDING_BRANCH_MANAGER, branchId, pageable),
+                mapper::toApplicationResponse);
     }
 
-    /**
-     * Bucket for back office: applications the branch manager accepted,
-     * scoped the same way (branch of the marketing user who originated it).
-     */
-    public List<LoanApplicationResponse> listBackOfficeBucket(String backOfficeUserId) {
+    public PageResponse<LoanApplicationResponse> listBackOfficeBucket(
+            String backOfficeUserId, Pageable pageable) {
+
         User backOffice = getUserWithRole(backOfficeUserId, RoleName.BACK_OFFICE);
         Integer branchId = requireBranch(backOffice);
-        return applicationRepository
-                .findByStatusAndReview_Marketing_Branch_BranchId(LoanStatus.PENDING_BACK_OFFICE, branchId)
-                .stream()
-                .map(mapper::toApplicationResponse)
-                .collect(Collectors.toList());
+
+        return PageResponse.of(
+                applicationRepository.findByStatusAndReview_Marketing_Branch_BranchId(
+                        LoanStatus.PENDING_BACK_OFFICE, branchId, pageable),
+                mapper::toApplicationResponse);
     }
 
-    /**
-     * Step 3: branch manager approves or rejects an application marketing
-     * already accepted. There is no dedicated table for this decision in the
-     * current schema, so it's recorded directly as a status transition.
-     */
     @Transactional
     public LoanApplicationResponse branchManagerDecision(
             String branchManagerUserId,
@@ -207,7 +185,7 @@ public class LoanApplicationService {
         return mapper.toApplicationResponse(application);
     }
 
-    // ---- internal helpers, also used by the other services ----
+    // ---- internal helpers ----
     LoanApplication getApplicationOrThrow(String applicationId) {
         return applicationRepository.findById(applicationId)
                 .orElseThrow(() -> BusinessException.notFound("Loan application not found: " + applicationId));
