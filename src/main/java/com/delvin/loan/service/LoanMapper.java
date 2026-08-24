@@ -27,7 +27,9 @@ public class LoanMapper {
                 customer.getCustomerId(),
                 customer.getCustomerName(),
                 customer.getEmail(),
-                customer.getPhoneNumber()
+                customer.getPhoneNumber(),
+                customer.getNik(),
+                customer.getAddress()
         );
     }
 

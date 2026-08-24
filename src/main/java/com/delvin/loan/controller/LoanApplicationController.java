@@ -1,6 +1,7 @@
 package com.delvin.loan.controller;
 
 import com.delvin.loan.common.ApiResponse;
+import com.delvin.loan.common.LoanStatus;
 import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.loanreq.LoanApplicationCreateRequest;
@@ -10,8 +11,11 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/loan-applications")
@@ -23,7 +27,6 @@ public class LoanApplicationController {
         this.applicationService = applicationService;
     }
 
-    /** Customer creates a new loan application (income, purpose, requestedAmount, tenor). */
     @PostMapping
     public ResponseEntity<ApiResponse<LoanApplicationResponse>> create(
             @Valid @RequestBody LoanApplicationCreateRequest request) {
@@ -35,12 +38,13 @@ public class LoanApplicationController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> getAllApplication(
+            @RequestParam(required = false) List<String> status,
             @PageableDefault(size = 10, sort = "submissionDate", direction = Sort.Direction.DESC)
             Pageable pageable
     ) {
         return ResponseUtil.success(
                 "Loan Application retrieved",
-                applicationService.getAllApplication(pageable));
+                applicationService.getAllApplication(status, pageable));
     }
 
     @GetMapping("/{applicationId}")

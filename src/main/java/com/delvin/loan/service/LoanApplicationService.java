@@ -15,17 +15,28 @@ import com.delvin.loan.repository.CustomerRepository;
 import com.delvin.loan.repository.LoanApplicationRepository;
 import com.delvin.loan.repository.LoanDecisionRepository;
 import com.delvin.loan.repository.UserRepository;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class LoanApplicationService {
+
+    private static final Set<String> VALID_STATUSES = Set.of(
+            LoanStatus.CHECKING,
+            LoanStatus.REJECTED_BY_MARKETING,
+            LoanStatus.PENDING_BRANCH_MANAGER,
+            LoanStatus.REJECTED_BY_BRANCH_MANAGER,
+            LoanStatus.PENDING_BACK_OFFICE,
+            LoanStatus.VERIFIED,
+            LoanStatus.DISBURSED);
 
     private final LoanApplicationRepository applicationRepository;
     private final CustomerRepository customerRepository;
@@ -63,10 +74,44 @@ public class LoanApplicationService {
         return mapper.toApplicationResponse(application);
     }
 
-    public PageResponse<LoanApplicationResponse> getAllApplication(Pageable pageable) {
-        return PageResponse.of(
-                applicationRepository.findAll(pageable),
-                mapper::toApplicationResponse);
+    public PageResponse<LoanApplicationResponse> getAllApplication(List<String> statuses, Pageable pageable) {
+
+        List<String> filters = normalizeStatuses(statuses);
+
+        Page<LoanApplication> applications = filters.isEmpty()
+                ? applicationRepository.findAll(pageable)
+                : applicationRepository.findByStatusIn(filters, pageable);
+
+        return PageResponse.of(applications, mapper::toApplicationResponse);
+    }
+
+    private List<String> normalizeStatuses(List<String> statuses) {
+
+        List<String> normalized = new ArrayList<>();
+
+        if (statuses == null) {
+            return normalized;
+        }
+
+        for (String raw : statuses) {
+
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+
+            String status = raw.trim().toUpperCase();
+
+            if (!VALID_STATUSES.contains(status)) {
+                throw BusinessException.badRequest(
+                        "Invalid status: " + raw + ". Allowed: " + VALID_STATUSES);
+            }
+
+            if (!normalized.contains(status)) {
+                normalized.add(status);
+            }
+        }
+
+        return normalized;
     }
 
     public LoanApplicationResponse getApplication(String applicationId) {
@@ -186,6 +231,7 @@ public class LoanApplicationService {
     }
 
     // ---- internal helpers ----
+
     LoanApplication getApplicationOrThrow(String applicationId) {
         return applicationRepository.findById(applicationId)
                 .orElseThrow(() -> BusinessException.notFound("Loan application not found: " + applicationId));

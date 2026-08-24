@@ -12,4 +12,6 @@ public class CustomerSummary {
     private String customerName;
     private String email;
     private String phoneNumber;
+    private String nik;
+    private String address;
 }
