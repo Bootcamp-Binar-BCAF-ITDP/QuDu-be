@@ -29,6 +29,25 @@ public interface UserRepository extends JpaRepository<User, String> {
             """)
     Page<User> search(@Param("keyword") String keyword, Pageable pageable);
 
+    @Query("""
+    SELECT u FROM User u
+    LEFT JOIN FETCH u.role r
+    LEFT JOIN FETCH u.branch b
+    WHERE u.isActive = true
+      AND (
+            LOWER(u.username) LIKE :keyword
+         OR LOWER(u.email) LIKE :keyword
+         OR LOWER(u.fullName) LIKE :keyword
+         OR LOWER(u.phoneNumber) LIKE :keyword
+         OR LOWER(r.roleName) LIKE :keyword
+         OR LOWER(b.branchName) LIKE :keyword
+      )
+    """)
+    Page<User> findAllByStatusIsActive(
+            @Param("keyword") String keyword,
+            Pageable pageable
+    );
+
     Optional<User> findByUsername(String username);
 
     Optional<User> findByEmail(String email);

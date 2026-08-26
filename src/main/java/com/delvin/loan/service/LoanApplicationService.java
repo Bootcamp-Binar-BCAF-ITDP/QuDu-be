@@ -29,15 +29,6 @@ import java.util.UUID;
 @Service
 public class LoanApplicationService {
 
-    private static final Set<String> VALID_STATUSES = Set.of(
-            LoanStatus.CHECKING,
-            LoanStatus.REJECTED_BY_MARKETING,
-            LoanStatus.PENDING_BRANCH_MANAGER,
-            LoanStatus.REJECTED_BY_BRANCH_MANAGER,
-            LoanStatus.PENDING_BACK_OFFICE,
-            LoanStatus.VERIFIED,
-            LoanStatus.DISBURSED);
-
     private final LoanApplicationRepository applicationRepository;
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
@@ -74,15 +65,45 @@ public class LoanApplicationService {
         return mapper.toApplicationResponse(application);
     }
 
-    public PageResponse<LoanApplicationResponse> getAllApplication(List<String> statuses, Pageable pageable) {
+    @Transactional(readOnly = true)
+    public PageResponse<LoanApplicationResponse> getAllApplication(
+            List<String> statuses, String search, Pageable pageable) {
 
         List<String> filters = normalizeStatuses(statuses);
+        String term = normalizeSearch(search);
 
-        Page<LoanApplication> applications = filters.isEmpty()
-                ? applicationRepository.findAll(pageable)
-                : applicationRepository.findByStatusIn(filters, pageable);
+        Page<LoanApplication> applications;
+
+        if (filters.isEmpty() && term == null) {
+            applications = applicationRepository.findAll(pageable);
+
+        } else if (term == null) {
+            applications = applicationRepository.findByStatusIn(filters, pageable);
+
+        } else if (filters.isEmpty()) {
+            applications = applicationRepository.search(term, pageable);
+
+        } else {
+            applications = applicationRepository.searchByStatusIn(filters, term, pageable);
+        }
 
         return PageResponse.of(applications, mapper::toApplicationResponse);
+    }
+
+    public PageResponse<LoanApplicationResponse> getMyBucket(
+            String userId, String roleName, Pageable pageable) {
+
+        if (roleName == null || roleName.isBlank()) {
+            throw BusinessException.forbidden("User has no role assigned");
+        }
+
+        return switch (roleName.trim().toUpperCase()) {
+            case RoleName.MARKETING      -> listMarketingBucket(pageable);
+            case RoleName.BRANCH_MANAGER -> listBranchManagerBucket(userId, pageable);
+            case RoleName.BACK_OFFICE    -> listBackOfficeBucket(userId, pageable);
+            default -> throw BusinessException.forbidden(
+                    "Role " + roleName + " has no application bucket");
+        };
     }
 
     private List<String> normalizeStatuses(List<String> statuses) {
@@ -231,6 +252,37 @@ public class LoanApplicationService {
     }
 
     // ---- internal helpers ----
+
+    private String normalizeSearch(String search) {
+
+        if (search == null) {
+            return null;
+        }
+
+        String trimmed = search.trim();
+
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        // Escape LIKE wildcards typed by the user so they are matched literally.
+        String escaped = trimmed
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+
+        return "%" + escaped.toLowerCase() + "%";
+    }
+
+    private static final Set<String> VALID_STATUSES = Set.of(
+            LoanStatus.CHECKING,
+            LoanStatus.REJECTED_BY_MARKETING,
+            LoanStatus.PENDING_BRANCH_MANAGER,
+            LoanStatus.REJECTED_BY_BRANCH_MANAGER,
+            LoanStatus.PENDING_BACK_OFFICE,
+            LoanStatus.VERIFIED,
+            LoanStatus.DISBURSED
+    );
 
     LoanApplication getApplicationOrThrow(String applicationId) {
         return applicationRepository.findById(applicationId)

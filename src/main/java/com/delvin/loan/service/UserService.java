@@ -34,7 +34,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public PageResponse<UserResponse> getAllUsers(String search, Pageable pageable) {
 
-        Page<User> users = userRepository.search(toKeyword(search), pageable);
+        Page<User> users = userRepository.findAllByStatusIsActive(toKeyword(search), pageable);
 
         return PageResponse.of(users, this::toResponse);
     }

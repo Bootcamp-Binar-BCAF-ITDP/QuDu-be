@@ -7,7 +7,11 @@ public class SecurityRoutes {
 
     // PUBLIC
     public static final String[] PUBLIC = {
-            "/api/auth/**",
+            "/api/auth/**"
+    };
+
+    // SHARED
+    public static final String[] LOAN_APPLICATIONS = {
             "/api/loan-applications/**"
     };
 
@@ -35,7 +39,6 @@ public class SecurityRoutes {
     public static final String[] BACKOFFICE = {
             "/api/loan-verifications/**",
             "/api/loan-disbursements/**",
-            "/api/bo",
-            "/api/loan-verifications/**"
+            "/api/bo"
     };
 }
