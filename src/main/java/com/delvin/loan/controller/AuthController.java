@@ -7,7 +7,7 @@ import com.delvin.loan.dto.request.auth.LoginRequest;
 import com.delvin.loan.dto.request.auth.RegisterRequest;
 import com.delvin.loan.dto.request.auth.ResetPasswordRequest;
 import com.delvin.loan.dto.response.auth.AuthResponse;
-import com.delvin.loan.dto.response.auth.RegisterResponse;
+import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,23 +26,15 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(
-            @Valid @RequestBody RegisterRequest request
-    ) {
-
-        RegisterResponse response =
-                authService.register(request);
-
-        return ResponseUtil.created(
-                "User berhasil didaftarkan",
-                null
-        );
+    public ResponseEntity<ApiResponse<Void>> register(
+            @Valid @RequestBody RegisterRequest request) {
+        authService.register(request);
+        return ResponseUtil.created("User berhasil didaftarkan", null);
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(
-            @Valid @RequestBody LoginRequest request
-    ) {
+            @Valid @RequestBody LoginRequest request) {
 
         AuthResponse response = authService.login(request);
 

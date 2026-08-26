@@ -3,6 +3,7 @@ package com.delvin.loan.service;
 import com.delvin.loan.common.AccountType;
 import com.delvin.loan.dto.response.auth.RegisterResponse;
 import com.delvin.loan.dto.response.menu.MenuResponse;
+import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.*;
 import com.delvin.loan.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import com.delvin.loan.dto.request.auth.ForgotPasswordRequest;
 import com.delvin.loan.dto.request.auth.ResetPasswordRequest;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -28,6 +30,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class AuthService {
+
+    private static final String INVALID_CREDENTIALS = "Username atau password salah";
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -59,30 +63,16 @@ public class AuthService {
 
     private RegisterResponse registerUser(RegisterRequest request) {
 
-        if (request.getUsername() == null ||
-                request.getUsername().isBlank()) {
-
-            throw new IllegalArgumentException(
-                    "Username wajib diisi"
-            );
+        if (request.getUsername() == null || request.getUsername().isBlank()) {
+            throw BusinessException.badRequest("Username wajib diisi");
         }
 
-        if (userRepository.existsByUsername(
-                request.getUsername()
-        )) {
-
-            throw new IllegalArgumentException(
-                    "Username sudah digunakan"
-            );
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw BusinessException.conflict("Username sudah digunakan");
         }
 
-        if (userRepository.existsByEmail(
-                request.getEmail()
-        )) {
-
-            throw new IllegalArgumentException(
-                    "Email sudah digunakan"
-            );
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw BusinessException.conflict("Email sudah digunakan");
         }
 
         Role role = roleRepository
@@ -99,9 +89,7 @@ public class AuthService {
                         true
                 )
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Branch tidak ditemukan atau tidak aktif"
-                        )
+                        BusinessException.badRequest("Role tidak ditemukan")
                 );
 
         User user = new User();
@@ -136,8 +124,7 @@ public class AuthService {
         user.setRole(role);
         user.setIsActive(true);
 
-        User savedUser =
-                userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
         return RegisterResponse.builder()
                 .userId(savedUser.getUserId())
@@ -148,37 +135,21 @@ public class AuthService {
 
     private RegisterResponse registerCustomer(RegisterRequest request) {
 
-        if (customerRepository.existsByEmail(
-                request.getEmail()
-        )) {
-
-            throw new IllegalArgumentException(
-                    "Email sudah digunakan"
-            );
+        if (customerRepository.existsByEmail(request.getEmail())) {
+            throw BusinessException.conflict("Email sudah digunakan");
         }
 
-        if (customerRepository.existsByNik(
-                request.getNik()
-        )) {
-
-            throw new IllegalArgumentException(
-                    "NIK sudah digunakan"
-            );
+        if (customerRepository.existsByNik(request.getNik())) {
+            throw BusinessException.conflict("NIK sudah digunakan");
         }
 
         Plafond plafond = plafondRepository
                 .findById(1)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Plafond tidak ditemukan"
-                        )
-                );
+                .orElseThrow(() -> new IllegalStateException("Default plafond (id=1) is missing from the database"));
 
         Customer customer = new Customer();
 
-        customer.setCustomerId(
-                UUID.randomUUID().toString()
-        );
+        customer.setCustomerId(UUID.randomUUID().toString());
 
         customer.setPlafond(plafond);
 
@@ -233,11 +204,7 @@ public class AuthService {
 
         return RegisterResponse.builder()
                 .userId(savedCustomer.getCustomerId())
-
-                // RegisterResponse currently uses username,
-                // so return customer email
                 .username(savedCustomer.getEmail())
-
                 .role("CUSTOMER")
                 .build();
     }
@@ -260,9 +227,7 @@ public class AuthService {
                         request.getUsernameOrEmail()
                 )
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
-                                "Username atau email tidak ditemukan"
-                        )
+                        BusinessException.unauthorized(INVALID_CREDENTIALS)
                 );
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
