@@ -13,9 +13,6 @@ public class LoanVerificationRequest {
     @NotBlank(message = "applicationId is required")
     private String applicationId;
 
-    @NotBlank(message = "backOfficeUserId is required")
-    private String backOfficeUserId;
-
     /** One of CallStatus.CAN_BE_CONTACTED / NADA_SAMBUNG_TIDAK_DIANGKAT / SALAH_SAMBUNG */
     @NotBlank(message = "callStatus is required")
     private String callStatus;

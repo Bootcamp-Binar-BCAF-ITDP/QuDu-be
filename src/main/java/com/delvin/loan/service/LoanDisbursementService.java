@@ -36,8 +36,12 @@ public class LoanDisbursementService {
     }
 
     @Transactional
-    public LoanDisbursementResponse disburse(LoanDisbursementRequest request) {
-        User backOffice = applicationService.getUserWithRole(request.getBackOfficeUserId(), RoleName.BACK_OFFICE);
+    public LoanDisbursementResponse disburse(
+            String backOfficeUserId,
+            LoanDisbursementRequest request
+    ) {
+        User backOffice = applicationService.getUserWithRole(backOfficeUserId, RoleName.BACK_OFFICE);
+
         LoanApplication application = applicationService.getApplicationOrThrow(request.getApplicationId());
 
         if (!LoanStatus.VERIFIED.equals(application.getStatus())) {

@@ -4,9 +4,11 @@ import com.delvin.loan.common.ApiResponse;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.loanreq.LoanVerificationRequest;
 import com.delvin.loan.dto.response.loanresp.LoanVerificationResponse;
+import com.delvin.loan.model.AppUser;
 import com.delvin.loan.service.LoanVerificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,8 +26,15 @@ public class LoanVerificationController {
     /** Back office logs the outcome of a verification call. */
     @PostMapping
     public ResponseEntity<ApiResponse<LoanVerificationResponse>> submit(
+            @AuthenticationPrincipal AppUser appUser,
             @Valid @RequestBody LoanVerificationRequest request) {
-        return ResponseUtil.created("Verification call recorded", verificationService.submitVerification(request));
+        return ResponseUtil.created(
+                "Verification call recorded",
+                verificationService.submitVerification(
+                        appUser.getUserId(),
+                        request
+                )
+        );
     }
 
     @GetMapping("/application/{applicationId}")

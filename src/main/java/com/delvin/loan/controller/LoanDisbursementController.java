@@ -4,9 +4,11 @@ import com.delvin.loan.common.ApiResponse;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.loanreq.LoanDisbursementRequest;
 import com.delvin.loan.dto.response.loanresp.LoanDisbursementResponse;
+import com.delvin.loan.model.AppUser;
 import com.delvin.loan.service.LoanDisbursementService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,8 +23,12 @@ public class LoanDisbursementController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<LoanDisbursementResponse>> disburse(
+            @AuthenticationPrincipal AppUser appUser,
             @Valid @RequestBody LoanDisbursementRequest request) {
-        return ResponseUtil.created("Loan disbursed", disbursementService.disburse(request));
+        return ResponseUtil.created("Loan disbursed", disbursementService.disburse(
+                appUser.getUserId(),
+                request)
+        );
     }
 
     @GetMapping("/application/{applicationId}")

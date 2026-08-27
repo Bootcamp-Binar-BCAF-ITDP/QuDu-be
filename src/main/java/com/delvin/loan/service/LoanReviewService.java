@@ -33,19 +33,11 @@ public class LoanReviewService {
     @Transactional
     public LoanReviewResponse submitReview(String marketingUserId, LoanReviewRequest request) {
 
-        String recommendation =
-                normalizeRecommendation(request.getRecommendation());
+        String recommendation = normalizeRecommendation(request.getRecommendation());
 
-        User marketing =
-                applicationService.getUserWithRole(
-                        marketingUserId,
-                        RoleName.MARKETING
-                );
+        User marketing = applicationService.getUserWithRole(marketingUserId, RoleName.MARKETING);
 
-        LoanApplication application =
-                applicationService.getApplicationOrThrow(
-                        request.getApplicationId()
-                );
+        LoanApplication application = applicationService.getApplicationOrThrow(request.getApplicationId());
 
         if (!LoanStatus.CHECKING.equals(application.getStatus())) {
             throw BusinessException.conflict(

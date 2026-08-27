@@ -182,12 +182,11 @@ public class LoanApplicationService {
     ) {
 
         User branchManager = getUserWithRole(
-                branchManagerUserId,
+                branchManagerUserId,    
                 RoleName.BRANCH_MANAGER
         );
 
-        LoanApplication application =
-                getApplicationOrThrow(request.getApplicationId());
+        LoanApplication application = getApplicationOrThrow(request.getApplicationId());
 
         if (!LoanStatus.PENDING_BRANCH_MANAGER.equals(application.getStatus())) {
             throw BusinessException.conflict(
@@ -211,11 +210,9 @@ public class LoanApplicationService {
             );
         }
 
-        Integer applicationBranchId =
-                requireBranch(application.getReview().getMarketing());
+        Integer applicationBranchId = requireBranch(application.getReview().getMarketing());
 
-        Integer branchManagerBranchId =
-                requireBranch(branchManager);
+        Integer branchManagerBranchId = requireBranch(branchManager);
 
         if (!applicationBranchId.equals(branchManagerBranchId)) {
             throw BusinessException.forbidden(
@@ -223,8 +220,7 @@ public class LoanApplicationService {
             );
         }
 
-        LoanDecision decision =
-                new LoanDecision();
+        LoanDecision decision = new LoanDecision();
 
         decision.setApplication(application);
         decision.setBranchManager(branchManager);
@@ -252,7 +248,6 @@ public class LoanApplicationService {
     }
 
     // ---- internal helpers ----
-
     private String normalizeSearch(String search) {
 
         if (search == null) {

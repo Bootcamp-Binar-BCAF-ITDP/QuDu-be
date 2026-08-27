@@ -32,17 +32,11 @@ public class LoanVerificationService {
         this.mapper = mapper;
     }
 
-    /**
-     * Step 5: back office calls the customer and logs the outcome. Applications
-     * stay in the PENDING_BACK_OFFICE bucket (so they can be retried) unless
-     * the call status is "Can be Contacted", in which case the application
-     * becomes VERIFIED and is ready for disbursement.
-     */
     @Transactional
-    public LoanVerificationResponse submitVerification(LoanVerificationRequest request) {
+    public LoanVerificationResponse submitVerification(String backOfficeUserId, LoanVerificationRequest request) {
         String callStatus = normalizeCallStatus(request.getCallStatus());
 
-        User backOffice = applicationService.getUserWithRole(request.getBackOfficeUserId(), RoleName.BACK_OFFICE);
+        User backOffice = applicationService.getUserWithRole(backOfficeUserId, RoleName.BACK_OFFICE);
         LoanApplication application = applicationService.getApplicationOrThrow(request.getApplicationId());
 
         if (!LoanStatus.PENDING_BACK_OFFICE.equals(application.getStatus())) {
