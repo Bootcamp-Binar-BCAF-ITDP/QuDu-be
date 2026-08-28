@@ -8,6 +8,7 @@ import com.delvin.loan.model.*;
 import com.delvin.loan.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import com.delvin.loan.dto.request.auth.LoginRequest;
 import com.delvin.loan.dto.request.auth.RegisterRequest;
@@ -306,39 +307,39 @@ public class AuthService {
                 .build();
     }
 
+    @Async
     @Transactional
     public void forgotPassword(
             ForgotPasswordRequest request
     ) {
+        try {
+            User user = userRepository.findByEmail(request.getEmail()).orElse(null);
 
-        User user = userRepository
-                .findByEmail(request.getEmail())
-                .orElse(null);
+            if (user == null) {
+                return;
+            }
 
-        if (user == null) {
-            return;
+            passwordResetTokenRepository.deleteByUser(user);
+
+            String token = UUID.randomUUID().toString();
+
+            PasswordResetToken resetToken = new PasswordResetToken();
+
+            resetToken.setToken(token);
+            resetToken.setUser(user);
+            resetToken.setExpiryDate(LocalDateTime.now().plusMinutes(15));
+            resetToken.setUsed(false);
+
+            passwordResetTokenRepository.save(resetToken);
+
+            emailService.sendResetPasswordEmail(
+                    user.getEmail(),
+                    token
+            );
+        } catch(Exception e) {
+            e.printStackTrace();
         }
 
-        passwordResetTokenRepository.deleteByUser(user);
-
-        String token = UUID.randomUUID().toString();
-
-        PasswordResetToken resetToken =
-                new PasswordResetToken();
-
-        resetToken.setToken(token);
-        resetToken.setUser(user);
-        resetToken.setExpiryDate(
-                LocalDateTime.now().plusMinutes(15)
-        );
-        resetToken.setUsed(false);
-
-        passwordResetTokenRepository.save(resetToken);
-
-        emailService.sendResetPasswordEmail(
-                user.getEmail(),
-                token
-        );
     }
 
     @Transactional
@@ -346,12 +347,8 @@ public class AuthService {
             ResetPasswordRequest request
     ) {
 
-        if (!request.getNewPassword()
-                .equals(request.getConfirmPassword())) {
-
-            throw new IllegalArgumentException(
-                    "Password dan konfirmasi password tidak sama"
-            );
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("Password dan konfirmasi password tidak sama");
         }
 
         PasswordResetToken resetToken =

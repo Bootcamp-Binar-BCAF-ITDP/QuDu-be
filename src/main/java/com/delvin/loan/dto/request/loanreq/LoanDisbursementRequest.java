@@ -23,6 +23,8 @@ public class LoanDisbursementRequest {
     @NotBlank(message = "accountNumber is required")
     private String accountNumber;
 
+    private boolean isApproved;
+
     /** Optional - defaults to the application's requestedAmount when omitted. */
     @DecimalMin(value = "0.01", message = "disbursedAmount must be greater than 0")
     private BigDecimal disbursedAmount;

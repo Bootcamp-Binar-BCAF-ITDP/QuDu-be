@@ -35,15 +35,6 @@ public class LoanApplicationController {
         this.applicationService = applicationService;
     }
 
-    @PostMapping
-    public ResponseEntity<ApiResponse<LoanApplicationResponse>> create(
-            @Valid @RequestBody LoanApplicationCreateRequest request) {
-
-        return ResponseUtil.created(
-                "Loan application submitted",
-                applicationService.createApplication(request));
-    }
-
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> getAllApplication(
             @RequestParam(required = false) List<String> status,

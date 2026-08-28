@@ -23,8 +23,7 @@ public class EmailService {
             String token
     ) {
 
-        String resetLink =
-                resetPasswordUrl + "?token=" + token;
+        String resetLink = resetPasswordUrl.replace("{token}", token);
 
         SimpleMailMessage message =
                 new SimpleMailMessage();

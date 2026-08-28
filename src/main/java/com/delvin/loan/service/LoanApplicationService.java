@@ -46,28 +46,6 @@ public class LoanApplicationService {
         this.loanDecisionRepository = loanDecisionRepository;
     }
 
-    @Transactional
-    public LoanApplicationResponse createApplication(LoanApplicationCreateRequest request) {
-        Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> BusinessException.notFound("Customer not found: " + request.getCustomerId()));
-
-        LoanApplication application = new LoanApplication();
-        application.setApplicationId(generateApplicationId());
-        application.setCustomer(customer);
-        application.setRequestedAmount(request.getRequestedAmount());
-        application.setTenor(request.getTenor());
-        application.setPurpose(request.getPurpose());
-        application.setIncome(request.getIncome());
-        application.setStatus(LoanStatus.CHECKING);
-        application.setSubmissionDate(LocalDate.now());
-        application.setBank(request.getBank());
-        application.setBankAccountName(request.getBankAccountName());
-        application.setBankAccountNumber(request.getBankAccountNumber());
-
-        applicationRepository.save(application);
-        return mapper.toApplicationResponse(application);
-    }
-
     @Transactional(readOnly = true)
     public PageResponse<LoanApplicationResponse> getAllApplication(
             List<String> statuses, String search, Pageable pageable) {
@@ -304,10 +282,5 @@ public class LoanApplicationService {
             throw BusinessException.badRequest("User " + user.getUserId() + " has no branch assigned.");
         }
         return user.getBranch().getBranchId();
-    }
-
-    private String generateApplicationId() {
-        return "LA-" + LocalDate.now().toString().replace("-", "") + "-"
-                + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 }

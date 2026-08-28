@@ -39,39 +39,27 @@ public class JwtService {
         this.ttl = Duration.ofMinutes(ttlMinutes);
     }
 
-    // =========================
     // USER JWT
-    // =========================
     public String issue(
             AppUser user,
             Instant issuedAt
     ) {
-
         return userBuilder(user, issuedAt)
-                .expiration(
-                        Date.from(issuedAt.plus(ttl))
-                )
+                .expiration(Date.from(issuedAt.plus(ttl)))
                 .compact();
     }
 
-    // =========================
     // CUSTOMER JWT
-    // =========================
     public String issue(
             AppCustomer customer,
             Instant issuedAt
     ) {
-
         return customerBuilder(customer, issuedAt)
-                .expiration(
-                        Date.from(issuedAt.plus(ttl))
-                )
+                .expiration(Date.from(issuedAt.plus(ttl)))
                 .compact();
     }
 
-    // =========================
     // PARSE TOKEN
-    // =========================
     public Claims parse(String token) {
 
         return Jwts.parser()
@@ -81,9 +69,7 @@ public class JwtService {
                 .getPayload();
     }
 
-    // =========================
     // USER TOKEN BUILDER
-    // =========================
     private JwtBuilder userBuilder(
             AppUser user,
             Instant issuedAt
@@ -99,9 +85,7 @@ public class JwtService {
                 .signWith(key);
     }
 
-    // =========================
     // CUSTOMER TOKEN BUILDER
-    // =========================
     private JwtBuilder customerBuilder(
             AppCustomer customer,
             Instant issuedAt

@@ -7,7 +7,8 @@ public class SecurityRoutes {
 
     // PUBLIC
     public static final String[] PUBLIC = {
-            "/api/auth/**"
+            "/api/auth/**",
+            "/api/customer/**"
     };
 
     // SHARED

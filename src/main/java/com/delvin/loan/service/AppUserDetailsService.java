@@ -30,14 +30,10 @@ public class AppUserDetailsService implements UserDetailsService {
         // CHECK INTERNAL USER
 
         User user = userRepository
-                .findByUsernameOrEmail(
-                        usernameOrEmail,
-                        usernameOrEmail
-                )
+                .findByUsernameOrEmail(usernameOrEmail, usernameOrEmail)
                 .orElse(null);
 
         if (user != null) {
-
             if (Boolean.FALSE.equals(user.getIsActive())) {
                 throw new UsernameNotFoundException(
                         "User tidak aktif"
