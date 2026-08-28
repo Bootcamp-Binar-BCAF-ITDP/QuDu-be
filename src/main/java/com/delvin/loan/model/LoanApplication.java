@@ -40,6 +40,15 @@ public class LoanApplication {
     @Column(nullable = false)
     private LocalDate submissionDate;
 
+    @Column(nullable = false, name = "bank_account_number")
+    private String bankAccountNumber;
+
+    @Column(nullable = false, name = "bank_account_name")
+    private String bankAccountName;
+
+    @Column(nullable = false, name = "bank")
+    private String bank;
+
     @OneToMany(mappedBy = "application")
     private List<LoanDocument> documents;
 
@@ -49,9 +58,6 @@ public class LoanApplication {
     @OneToOne(mappedBy = "application")
     private LoanDecision branchManagerDecision;
 
-    // NOTE: added - mirrors the new LoanVerification.application link so a
-    // back-office user can see every call attempt (a customer may need to
-    // be re-called after "Nada Sambung Tidak Diangkat" / "Salah Sambung").
     @OneToMany(mappedBy = "application")
     private List<LoanVerification> verifications;
 

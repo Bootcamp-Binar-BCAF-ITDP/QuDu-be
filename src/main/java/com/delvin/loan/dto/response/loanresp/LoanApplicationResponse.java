@@ -20,6 +20,9 @@ public class LoanApplicationResponse {
     private BigDecimal income;
     private String status;
     private LocalDate submissionDate;
+    private String bank;
+    private String bankAccountNumber;
+    private String bankAccountName;
 
     private List<LoanDocumentResponse> documents;
 

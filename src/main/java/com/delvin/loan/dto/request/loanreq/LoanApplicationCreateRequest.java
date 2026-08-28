@@ -27,6 +27,15 @@ public class LoanApplicationCreateRequest {
     @NotBlank(message = "purpose is required")
     private String purpose;
 
+    @NotBlank(message = "bank is required")
+    private String bank;
+
+    @NotBlank(message = "bank account number is required")
+    private String bankAccountNumber;
+
+    @NotBlank(message = "bank account name is required")
+    private String bankAccountName;
+
     @NotNull(message = "income is required")
     @DecimalMin(value = "0.01", message = "income must be greater than 0")
     private BigDecimal income;

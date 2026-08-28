@@ -60,6 +60,9 @@ public class LoanApplicationService {
         application.setIncome(request.getIncome());
         application.setStatus(LoanStatus.CHECKING);
         application.setSubmissionDate(LocalDate.now());
+        application.setBank(request.getBank());
+        application.setBankAccountName(request.getBankAccountName());
+        application.setBankAccountNumber(request.getBankAccountNumber());
 
         applicationRepository.save(application);
         return mapper.toApplicationResponse(application);
