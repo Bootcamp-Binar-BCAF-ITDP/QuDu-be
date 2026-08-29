@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,13 +39,15 @@ public class LoanDisbursementController {
         );
     }
 
-    @PostMapping
+    @Async
+    @PutMapping
     public ResponseEntity<ApiResponse<LoanDisbursementResponse>> disburse(
             @AuthenticationPrincipal AppUser appUser,
-            @Valid @RequestBody LoanDisbursementRequest request) {
-        return ResponseUtil.created("Loan disbursed", disbursementService.disburse(
-                appUser.getUserId(),
-                request)
+            @Valid @RequestBody LoanDisbursementRequest request
+    ) {
+        return ResponseUtil.success(
+                "Disbursement decision recorded",
+                disbursementService.disburse(appUser.getUserId(), request)
         );
     }
 

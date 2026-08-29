@@ -19,5 +19,6 @@ public class LoanDisbursementResponse {
     private String bankName;
     private String accountNumber;
     private LocalDate disbursementDate;
-    private String status;
+    private String decision;
+    private String decisionNote;
 }

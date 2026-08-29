@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface LoanDisbursementRepository extends JpaRepository<LoanDisbursement, Integer> {
 
     Optional<LoanDisbursement> findByApplication_ApplicationId(String applicationId);
+
+    boolean existsByApplication_ApplicationId(String applicationId);
 }

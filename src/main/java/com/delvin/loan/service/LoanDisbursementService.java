@@ -7,19 +7,19 @@ import com.delvin.loan.common.RoleName;
 import com.delvin.loan.dto.request.loanreq.LoanDisbursementRequest;
 import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
 import com.delvin.loan.dto.response.loanresp.LoanDisbursementResponse;
+import com.delvin.loan.event.LoanDisbursedEvent;
 import com.delvin.loan.exception.BusinessException;
-import com.delvin.loan.model.LoanApplication;
-import com.delvin.loan.model.LoanDisbursement;
-import com.delvin.loan.model.LoanVerification;
-import com.delvin.loan.model.User;
+import com.delvin.loan.model.*;
 import com.delvin.loan.repository.LoanApplicationRepository;
 import com.delvin.loan.repository.LoanDisbursementRepository;
 import com.delvin.loan.repository.LoanVerificationRepository;
 import com.delvin.loan.repository.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.time.LocalDate;
 
 @Service
@@ -32,19 +32,24 @@ public class LoanDisbursementService {
     private final LoanApplicationRepository applicationRepository;
     private final UserRepository userRepository;
 
-    public LoanDisbursementService(LoanDisbursementRepository disbursementRepository,
-                                    LoanVerificationRepository verificationRepository,
-                                    LoanApplicationService applicationService,
-                                    LoanMapper mapper,
-                                   UserRepository userRepository,
-                                   LoanApplicationRepository applicationRepository
-                                   ) {
+    private static final Logger log = LoggerFactory.getLogger(LoanDisbursementService.class);
+    private final ApplicationEventPublisher events;
+
+    public LoanDisbursementService(
+            LoanDisbursementRepository disbursementRepository,
+            LoanVerificationRepository verificationRepository,
+            LoanApplicationService applicationService,
+            LoanMapper mapper,
+            UserRepository userRepository,
+            LoanApplicationRepository applicationRepository, ApplicationEventPublisher events
+    ) {
         this.disbursementRepository = disbursementRepository;
         this.verificationRepository = verificationRepository;
         this.applicationService = applicationService;
         this.mapper = mapper;
         this.userRepository = userRepository;
         this.applicationRepository = applicationRepository;
+        this.events = events;
     }
 
     @Transactional
@@ -58,8 +63,24 @@ public class LoanDisbursementService {
 
         if (!LoanStatus.VERIFIED.equals(application.getStatus())) {
             throw BusinessException.conflict(
-                    "Application " + application.getApplicationId() + " is not ready for disbursement (current status: "
-                            + application.getStatus() + "). It must have a successful verification call first.");
+                    "Application " + application.getApplicationId()
+                            + " is not ready for disbursement (current status: " + application.getStatus()
+                            + "). It must have a successful verification call first.");
+        }
+
+        if (disbursementRepository.existsByApplication_ApplicationId(application.getApplicationId())) {
+            throw BusinessException.conflict(
+                    "Application " + application.getApplicationId() + " already has a disbursement decision");
+        }
+
+        LoanReview review = application.getReview();
+        if (review == null || review.getMarketing() == null) {
+            throw BusinessException.badRequest(
+                    "Application " + application.getApplicationId() + " has no marketing review on file");
+        }
+
+        if (!requireBranch(review.getMarketing()).equals(requireBranch(backOffice))) {
+            throw BusinessException.forbidden("This application belongs to a different branch");
         }
 
         LoanVerification verification = verificationRepository
@@ -68,20 +89,49 @@ public class LoanDisbursementService {
                 .orElseThrow(() -> BusinessException.conflict(
                         "No successful verification call on file for application " + application.getApplicationId()));
 
+        boolean approved = Boolean.TRUE.equals(request.getApprove());
+
+        String note = request.getNote() == null ? null : request.getNote().trim();
+        if (!approved && (note == null || note.isEmpty())) {
+            throw BusinessException.badRequest("A note is required when a disbursement is rejected");
+        }
+
         LoanDisbursement disbursement = new LoanDisbursement();
         disbursement.setApplication(application);
         disbursement.setProcessedBy(backOffice);
         disbursement.setVerification(verification);
-        disbursement.setDisbursedAmount(request.getDisbursedAmount() != null
-                ? request.getDisbursedAmount()
-                : application.getRequestedAmount());
-        disbursement.setBankName(request.getBankName());
-        disbursement.setAccountNumber(request.getAccountNumber());
+        disbursement.setDecision(approved ? "APPROVED" : "REJECTED");
+        disbursement.setDecisionNote(note);
         disbursement.setDisbursementDate(LocalDate.now());
-        disbursement.setStatus(LoanStatus.DISBURSED);
+
+        disbursement.setBankName(application.getBank());
+        disbursement.setAccountNumber(application.getBankAccountNumber());
+        disbursement.setAccountName(application.getBankAccountName());
+        disbursement.setDisbursedAmount(approved ? application.getRequestedAmount() : null);
 
         disbursementRepository.save(disbursement);
-        application.setStatus(LoanStatus.DISBURSED);
+
+        application.setStatus(approved ? LoanStatus.DISBURSED : LoanStatus.REJECTED_BY_BACK_OFFICE);
+        applicationRepository.save(application);
+
+        if (approved) {
+            Customer customer = application.getCustomer();
+            String email = customer == null ? null : customer.getEmail();
+
+            if (email == null || email.isBlank()) {
+                log.warn("Application {} was disbursed but the customer has no email on file",
+                        application.getApplicationId());
+            } else {
+                events.publishEvent(new LoanDisbursedEvent(
+                        application.getApplicationId(),
+                        customer.getCustomerName(),
+                        email,
+                        disbursement.getDisbursedAmount(),
+                        disbursement.getBankName(),
+                        disbursement.getAccountNumber()
+                ));
+            }
+        }
 
         return mapper.toDisbursementResponse(disbursement);
     }

@@ -80,7 +80,8 @@ public class LoanMapper {
                 disbursement.getBankName(),
                 disbursement.getAccountNumber(),
                 disbursement.getDisbursementDate(),
-                disbursement.getStatus()
+                disbursement.getDecision(),
+                disbursement.getDecisionNote()
         );
     }
 

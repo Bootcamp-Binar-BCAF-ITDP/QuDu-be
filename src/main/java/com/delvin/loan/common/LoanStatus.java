@@ -18,6 +18,8 @@ public class LoanStatus {
 
     public static final String DISBURSED = "DISBURSED";
 
+    public static final String REJECTED_BY_BACK_OFFICE = "REJECTED_BY_BACK_OFFICE";
+
     public static boolean isTerminal(String status) {
         return REJECTED_BY_MARKETING.equals(status)
                 || REJECTED_BY_BRANCH_MANAGER.equals(status)

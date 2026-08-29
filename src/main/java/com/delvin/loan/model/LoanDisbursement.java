@@ -3,9 +3,9 @@ package com.delvin.loan.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 @Entity
 @Getter
@@ -19,11 +19,11 @@ public class LoanDisbursement {
     private Integer disburseId;
 
     @OneToOne
-    @JoinColumn(name = "application_id")
+    @JoinColumn(name = "application_id", nullable = false, unique = true)
     private LoanApplication application;
 
     @ManyToOne
-    @JoinColumn(name = "processed_by")
+    @JoinColumn(name = "processed_by", nullable = false)
     private User processedBy;
 
     @ManyToOne
@@ -31,17 +31,23 @@ public class LoanDisbursement {
     private LoanVerification verification;
 
     @Column(nullable = false)
+    private String decision;
+
+    @Column(name = "decision_note")
+    private String decisionNote;
+
+    @Column(name = "disbursed_amount")
     private BigDecimal disbursedAmount;
 
-    @Column(nullable = false)
+    @Column(name = "bank_name", nullable = false)
     private String bankName;
 
-    @Column(nullable = false)
+    @Column(name = "account_number", nullable = false)
     private String accountNumber;
 
-    @Column(nullable = false)
-    private LocalDate disbursementDate;
+    @Column(name = "account_name")
+    private String accountName;
 
-    @Column(nullable = false)
-    private String status;
+    @Column(name = "disbursement_date", nullable = false)
+    private LocalDate disbursementDate;
 }

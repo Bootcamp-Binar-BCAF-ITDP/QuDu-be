@@ -23,7 +23,6 @@ public class LoanVerificationController {
         this.verificationService = verificationService;
     }
 
-    /** Back office logs the outcome of a verification call. */
     @PostMapping
     public ResponseEntity<ApiResponse<LoanVerificationResponse>> submit(
             @AuthenticationPrincipal AppUser appUser,
