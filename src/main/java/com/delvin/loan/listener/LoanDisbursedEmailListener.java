@@ -43,9 +43,7 @@ public class LoanDisbursedEmailListener {
 
             mailSender.send(message);
             log.info("Disbursement email sent for application {}", event.applicationId());
-
         } catch (Exception e) {
-            // The money already moved. A failed email must not surface as an error to the operator.
             log.error("Could not send disbursement email for application {}",
                     event.applicationId(), e);
         }

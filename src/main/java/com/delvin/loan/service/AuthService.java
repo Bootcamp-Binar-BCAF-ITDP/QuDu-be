@@ -313,33 +313,63 @@ public class AuthService {
             ForgotPasswordRequest request
     ) {
         try {
-            User user = userRepository.findByEmail(request.getEmail()).orElse(null);
+            String email = request.getEmail();
+            AccountType requestedType = request.getAccountType();
 
-            if (user == null) {
-                return;
+            if (requestedType != AccountType.CUSTOMER) {
+
+                User user = userRepository.findByEmail(email).orElse(null);
+
+                if (user != null) {
+                    createAndSendResetToken(user, null, AccountType.USER, user.getEmail());
+                    return;
+                }
             }
 
+            if (requestedType != AccountType.USER) {
+
+                Customer customer = customerRepository.findByEmail(email).orElse(null);
+
+                if (customer != null) {
+                    createAndSendResetToken(null, customer, AccountType.CUSTOMER, customer.getEmail());
+                    return;
+                }
+            }
+
+            log.info("Forgot password diminta untuk email yang tidak terdaftar");
+
+        } catch (Exception e) {
+            log.warn("Gagal memproses forgot password", e);
+        }
+    }
+
+    private void createAndSendResetToken(
+            User user,
+            Customer customer,
+            AccountType accountType,
+            String email
+    ) {
+
+        if (accountType == AccountType.USER) {
             passwordResetTokenRepository.deleteByUser(user);
-
-            String token = UUID.randomUUID().toString();
-
-            PasswordResetToken resetToken = new PasswordResetToken();
-
-            resetToken.setToken(token);
-            resetToken.setUser(user);
-            resetToken.setExpiryDate(LocalDateTime.now().plusMinutes(15));
-            resetToken.setUsed(false);
-
-            passwordResetTokenRepository.save(resetToken);
-
-            emailService.sendResetPasswordEmail(
-                    user.getEmail(),
-                    token
-            );
-        } catch(Exception e) {
-            e.printStackTrace();
+        } else {
+            passwordResetTokenRepository.deleteByCustomer(customer);
         }
 
+        String token = UUID.randomUUID().toString();
+
+        PasswordResetToken resetToken = new PasswordResetToken();
+
+        resetToken.setToken(token);
+        resetToken.setAccountType(accountType);
+        resetToken.setUser(user);
+        resetToken.setCustomer(customer);
+        resetToken.setExpiryDate(LocalDateTime.now().plusMinutes(15));
+        resetToken.setUsed(false);
+
+        passwordResetTokenRepository.save(resetToken);
+
+        emailService.sendResetPasswordEmail(email, token);
     }
 
     @Transactional
@@ -375,15 +405,37 @@ public class AuthService {
             );
         }
 
-        User user = resetToken.getUser();
+        String encodedPassword =
+                passwordEncoder.encode(request.getNewPassword());
 
-        user.setPassword(
-                passwordEncoder.encode(
-                        request.getNewPassword()
-                )
-        );
+        if (resetToken.getAccountType() == AccountType.CUSTOMER) {
 
-        userRepository.save(user);
+            Customer customer = resetToken.getCustomer();
+
+            if (customer == null) {
+                throw new IllegalArgumentException(
+                        "Token reset password tidak valid"
+                );
+            }
+
+            customer.setPassword(encodedPassword);
+
+            customerRepository.save(customer);
+
+        } else {
+
+            User user = resetToken.getUser();
+
+            if (user == null) {
+                throw new IllegalArgumentException(
+                        "Token reset password tidak valid"
+                );
+            }
+
+            user.setPassword(encodedPassword);
+
+            userRepository.save(user);
+        }
 
         resetToken.setUsed(true);
 

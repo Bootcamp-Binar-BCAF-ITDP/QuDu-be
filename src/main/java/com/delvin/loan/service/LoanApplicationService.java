@@ -257,7 +257,8 @@ public class LoanApplicationService {
             LoanStatus.REJECTED_BY_BRANCH_MANAGER,
             LoanStatus.PENDING_BACK_OFFICE,
             LoanStatus.VERIFIED,
-            LoanStatus.DISBURSED
+            LoanStatus.DISBURSED,
+            LoanStatus.REJECTED_BY_BACK_OFFICE
     );
 
     LoanApplication getApplicationOrThrow(String applicationId) {

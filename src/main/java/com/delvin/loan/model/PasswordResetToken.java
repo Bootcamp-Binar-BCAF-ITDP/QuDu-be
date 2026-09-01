@@ -1,5 +1,6 @@
 package com.delvin.loan.model;
 
+import com.delvin.loan.common.AccountType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,12 +20,17 @@ public class PasswordResetToken {
     @Column(nullable = false, unique = true, length = 255)
     private String token;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_type", nullable = false, length = 20)
+    private AccountType accountType;
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "user_id",
-            nullable = false
-    )
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    private Customer customer;
 
     @Column(nullable = false)
     private LocalDateTime expiryDate;

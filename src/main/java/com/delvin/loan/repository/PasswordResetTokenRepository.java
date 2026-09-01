@@ -1,5 +1,6 @@
 package com.delvin.loan.repository;
 
+import com.delvin.loan.model.Customer;
 import com.delvin.loan.model.PasswordResetToken;
 import com.delvin.loan.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,4 +15,8 @@ public interface PasswordResetTokenRepository
     Optional<PasswordResetToken> findByUser(User user);
 
     void deleteByUser(User user);
+
+    Optional<PasswordResetToken> findByCustomer(Customer customer);
+
+    void deleteByCustomer(Customer customer);
 }

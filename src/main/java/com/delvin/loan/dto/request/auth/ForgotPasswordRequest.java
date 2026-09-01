@@ -1,5 +1,6 @@
 package com.delvin.loan.dto.request.auth;
 
+import com.delvin.loan.common.AccountType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
@@ -12,4 +13,6 @@ public class ForgotPasswordRequest {
     @NotBlank(message = "Email wajib diisi")
     @Email(message = "Format email tidak valid")
     private String email;
+
+    private AccountType accountType;
 }
