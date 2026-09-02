@@ -4,10 +4,14 @@ import com.delvin.loan.common.ApiResponse;
 import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.loanreq.BranchManagerDecisionRequest;
+import com.delvin.loan.dto.request.plafond.PlafondDecisionRequest;
 import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
+import com.delvin.loan.dto.response.plafond.PlafondRequestResponse;
 import com.delvin.loan.model.AppUser;
+import com.delvin.loan.service.BranchManagerService;
 import com.delvin.loan.service.LoanApplicationService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -19,13 +23,11 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/bm")
+@RequiredArgsConstructor
 public class BranchManagerController {
 
     private final LoanApplicationService applicationService;
-
-    public BranchManagerController(LoanApplicationService applicationService) {
-        this.applicationService = applicationService;
-    }
+    private final BranchManagerService  branchManagerService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> branchManagerBucket(
@@ -35,7 +37,7 @@ public class BranchManagerController {
     ) {
         return ResponseUtil.success(
                 "Branch manager bucket retrieved",
-                applicationService.listBranchManagerBucket(appUser.getUserId(), pageable)
+                branchManagerService.listBranchManagerBucket(appUser.getUserId(), pageable)
         );
     }
 
@@ -47,10 +49,34 @@ public class BranchManagerController {
 
         return ResponseUtil.success(
                 "Branch manager decision recorded",
-                applicationService.branchManagerDecision(
+                branchManagerService.branchManagerDecision(
                         appUser.getUserId(),
                         request
                 )
+        );
+    }
+
+    // PLAFOND
+    @GetMapping("/plafond-requests")
+    public ResponseEntity<ApiResponse<PageResponse<PlafondRequestResponse>>> plafondRequestBucket(
+            @PageableDefault(size = 10, sort = "requestDate", direction = Sort.Direction.ASC)
+            Pageable pageable
+    ) {
+        return ResponseUtil.success(
+                "Plafond request bucket retrieved",
+                branchManagerService.listPlafondRequestBucket(pageable)
+        );
+    }
+
+    @PutMapping("/plafond-requests/{requestId}/decision")
+    public ResponseEntity<ApiResponse<PlafondRequestResponse>> plafondDecision(
+            @AuthenticationPrincipal AppUser appUser,
+            @PathVariable String requestId,
+            @Valid @RequestBody PlafondDecisionRequest decision
+    ) {
+        return ResponseUtil.success(
+                "Plafond decision recorded",
+                branchManagerService.decidePlafondRequest(appUser.getUserId(), requestId, decision)
         );
     }
 }

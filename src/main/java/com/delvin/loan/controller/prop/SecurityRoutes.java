@@ -8,8 +8,13 @@ public class SecurityRoutes {
     // PUBLIC
     public static final String[] PUBLIC = {
             "/api/auth/**",
-            "/api/customer/**",
             "/api/dashboard/**"
+    };
+
+    // CUSTOMER
+    public static final String[] CUSTOMER = {
+        "/api/customer/**"
+
     };
 
     // SHARED
@@ -22,7 +27,8 @@ public class SecurityRoutes {
             "/api/users/**",
             "/api/roles/**",
             "/api/menus/**",
-            "/api/branches/**"
+            "/api/branches/**",
+            "/api/plafonds/**"
     };
 
     // MARKETING
@@ -34,7 +40,7 @@ public class SecurityRoutes {
     // BRANCH MANAGER
     public static final String[] BRANCH_MANAGER = {
             "/api/loan-approvals/**",
-            "/api/bm"
+            "/api/bm/**"
     };
 
     // BACKOFFICE

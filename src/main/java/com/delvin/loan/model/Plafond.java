@@ -3,8 +3,8 @@ package com.delvin.loan.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+
 import java.math.BigDecimal;
-import java.util.List;
 
 @Entity
 @Getter
@@ -13,20 +13,34 @@ import java.util.List;
 public class Plafond {
 
     @Id
-    @Column(name = "plafond_id", nullable = false)
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "plafond_id", nullable = false)
     private Integer plafondId;
 
-    private String productName;
-    private BigDecimal minimumAmount;
-    private BigDecimal maxAmount;
-    private BigDecimal interestRate;
-    private Integer minTenor;
-    private Integer maxTenor;
-    private BigDecimal adminFee;
-    private Boolean isActive;
+    @Column(name = "level", nullable = false, unique = true)
+    private Integer level;
+
+    @Column(name = "description", nullable = false)
     private String description;
 
-    @OneToMany(mappedBy = "plafond")
-    private List<Customer> customers;
+    @Column(name = "minimum_amount", nullable = false, precision = 19, scale = 2)
+    private BigDecimal minimumAmount;
+
+    @Column(name = "max_amount", nullable = false, precision = 19, scale = 2)
+    private BigDecimal maxAmount;
+
+    @Column(name = "min_tenor", nullable = false)
+    private Integer minTenor;
+
+    @Column(name = "max_tenor", nullable = false)
+    private Integer maxTenor;
+
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive;
+
+    @Column(name = "interest_rate", nullable = false, precision = 6, scale = 4)
+    private BigDecimal interestRate;
+
+    @Column(name = "admin_fee", nullable = false, precision = 19, scale = 2)
+    private BigDecimal adminFee;
 }

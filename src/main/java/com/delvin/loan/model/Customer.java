@@ -3,6 +3,8 @@ package com.delvin.loan.model;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -55,4 +57,7 @@ public class Customer {
 
     @OneToMany(mappedBy = "customer")
     private List<LoanApplication> applications;
+
+    @Column(name = "approved_limit", precision = 19, scale = 2)
+    private BigDecimal approvedLimit;
 }

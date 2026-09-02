@@ -161,6 +161,7 @@ public class SecurityConfig {
                                 RoleName.BRANCH_MANAGER,
                                 RoleName.BACK_OFFICE
                         )
+                        .requestMatchers(SecurityRoutes.CUSTOMER).hasAnyRole(RoleName.CUSTOMER)
                         .requestMatchers(SecurityRoutes.SUPERADMIN).hasAnyRole(RoleName.SUPERADMIN)
                         .requestMatchers(SecurityRoutes.BRANCH_MANAGER).hasAnyRole(RoleName.BRANCH_MANAGER)
                         .requestMatchers(SecurityRoutes.BACKOFFICE).hasAnyRole(RoleName.BACK_OFFICE)

@@ -15,6 +15,7 @@ import com.delvin.loan.repository.CustomerRepository;
 import com.delvin.loan.repository.LoanApplicationRepository;
 import com.delvin.loan.repository.LoanDecisionRepository;
 import com.delvin.loan.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,24 +28,12 @@ import java.util.Set;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class LoanApplicationService {
 
     private final LoanApplicationRepository applicationRepository;
-    private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final LoanMapper mapper;
-    private final LoanDecisionRepository loanDecisionRepository;
-
-    public LoanApplicationService(LoanApplicationRepository applicationRepository,
-                                  CustomerRepository customerRepository,
-                                  UserRepository userRepository,
-                                  LoanMapper mapper, LoanDecisionRepository loanDecisionRepository) {
-        this.applicationRepository = applicationRepository;
-        this.customerRepository = customerRepository;
-        this.userRepository = userRepository;
-        this.mapper = mapper;
-        this.loanDecisionRepository = loanDecisionRepository;
-    }
 
     @Transactional(readOnly = true)
     public PageResponse<LoanApplicationResponse> getAllApplication(
@@ -154,78 +143,6 @@ public class LoanApplicationService {
                 applicationRepository.findByStatusAndReview_Marketing_Branch_BranchId(
                         LoanStatus.PENDING_BACK_OFFICE, branchId, pageable),
                 mapper::toApplicationResponse);
-    }
-
-    @Transactional
-    public LoanApplicationResponse branchManagerDecision(
-            String branchManagerUserId,
-            BranchManagerDecisionRequest request
-    ) {
-
-        User branchManager = getUserWithRole(
-                branchManagerUserId,    
-                RoleName.BRANCH_MANAGER
-        );
-
-        LoanApplication application = getApplicationOrThrow(request.getApplicationId());
-
-        if (!LoanStatus.PENDING_BRANCH_MANAGER.equals(application.getStatus())) {
-            throw BusinessException.conflict(
-                    "Application is not awaiting branch manager decision"
-            );
-        }
-
-        if (loanDecisionRepository
-                .existsByApplication_ApplicationId(application.getApplicationId())) {
-
-            throw BusinessException.conflict(
-                    "Application already has a branch manager decision"
-            );
-        }
-
-        if (application.getReview() == null ||
-                application.getReview().getMarketing() == null) {
-
-            throw BusinessException.badRequest(
-                    "Application does not have a valid marketing review"
-            );
-        }
-
-        Integer applicationBranchId = requireBranch(application.getReview().getMarketing());
-
-        Integer branchManagerBranchId = requireBranch(branchManager);
-
-        if (!applicationBranchId.equals(branchManagerBranchId)) {
-            throw BusinessException.forbidden(
-                    "This application belongs to a different branch"
-            );
-        }
-
-        LoanDecision decision = new LoanDecision();
-
-        decision.setApplication(application);
-        decision.setBranchManager(branchManager);
-
-        decision.setDecision(
-                Boolean.TRUE.equals(request.getApprove())
-                        ? "APPROVED"
-                        : "REJECTED"
-        );
-
-        decision.setDecisionNote(request.getNote());
-        decision.setDecidedAt(LocalDate.now());
-
-        loanDecisionRepository.save(decision);
-
-        application.setStatus(
-                Boolean.TRUE.equals(request.getApprove())
-                        ? LoanStatus.PENDING_BACK_OFFICE
-                        : LoanStatus.REJECTED_BY_BRANCH_MANAGER
-        );
-
-        applicationRepository.save(application);
-
-        return mapper.toApplicationResponse(application);
     }
 
     // ---- internal helpers ----
