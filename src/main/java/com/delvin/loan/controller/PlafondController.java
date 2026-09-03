@@ -1,34 +1,49 @@
 package com.delvin.loan.controller;
 
 import com.delvin.loan.common.ApiResponse;
+import com.delvin.loan.common.PageResponse;
+import com.delvin.loan.common.PaginationUtil;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.plafond.PlafondRequest;
 import com.delvin.loan.dto.response.plafond.PlafondResponse;
 import com.delvin.loan.service.PlafondService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 
-/**
- * Plafond master data. Customer facing endpoints live in CustomerController,
- * approval endpoints in BranchManagerController.
- */
 @RestController
 @RequestMapping("/api/plafonds")
 @RequiredArgsConstructor
 public class PlafondController {
 
+    private static final Set<String> SORTABLE_FIELDS = Set.of("plafondId", "maxAmount", "minAmount", "level", "adminFee", "minTenor", "maxtenor", "interestRate");
+
     private final PlafondService plafondService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<PlafondResponse>>> getAll(
-            @RequestParam(defaultValue = "true") boolean activeOnly) {
+    public ResponseEntity<ApiResponse<PageResponse<PlafondResponse>>> getAll(
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(defaultValue = "plafondId") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir,
+            @RequestParam(defaultValue = "") String search) {
 
-        return ResponseUtil.success("Plafonds retrieved successfully", plafondService.getAll(activeOnly));
+        Pageable pageable = PaginationUtil.build(page, size, sortBy, sortDir, SORTABLE_FIELDS, "roleId");
+
+        PageResponse<PlafondResponse> plafonds = plafondService.getAll(search, pageable);
+
+        if (plafonds.getTotalElements() == 0) {
+            String message = search.isBlank() ? "No plafond data found": "No Plafond matches your search";
+            return ResponseUtil.success(message, plafonds);
+        }
+
+        return ResponseUtil.success("Plafonds retrieved successfully", plafonds);
     }
 
     @GetMapping("/{plafondId}")

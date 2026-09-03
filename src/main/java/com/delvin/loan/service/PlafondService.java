@@ -1,5 +1,6 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.dto.request.plafond.PlafondRequest;
 import com.delvin.loan.dto.response.plafond.PlafondResponse;
 import com.delvin.loan.exception.BusinessException;
@@ -7,6 +8,8 @@ import com.delvin.loan.model.Customer;
 import com.delvin.loan.model.Plafond;
 import com.delvin.loan.repository.PlafondRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,13 +27,15 @@ public class PlafondService {
 
     // Master data (admin)
     @Transactional(readOnly = true)
-    public List<PlafondResponse> getAll(boolean activeOnly) {
+    public PageResponse<PlafondResponse> getAll(String search, Pageable pageable) {
 
-        List<Plafond> plafonds = activeOnly
-                ? plafondRepository.findAllByIsActiveTrueOrderByLevelAsc()
-                : plafondRepository.findAllByOrderByLevelAsc();
+        Page<Plafond> plafonds = plafondRepository.search(toKeyword(search), pageable);
 
-        return plafonds.stream().map(PlafondResponse::from).toList();
+//        List<Plafond> plafonds = activeOnly
+//                ? plafondRepository.findAllByIsActiveTrueOrderByLevelAsc()
+//                : plafondRepository.findAllByOrderByLevelAsc();
+
+        return PageResponse.of(plafonds, this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -135,6 +140,31 @@ public class PlafondService {
     }
 
     // Helpers
+    private PlafondResponse toResponse(Plafond plafond) {
+        PlafondResponse response = new PlafondResponse();
+
+        response.setPlafondId(plafond.getPlafondId());
+        response.setAdminFee(plafond.getAdminFee());
+        response.setDescription(plafond.getDescription());
+        response.setInterestRate(plafond.getInterestRate());
+        response.setLevel(plafond.getLevel());
+        response.setMaxAmount(plafond.getMaxAmount());
+        response.setMinimumAmount(plafond.getMinimumAmount());
+        response.setMaxTenor(plafond.getMaxTenor());
+        response.setMinTenor(plafond.getMinTenor());
+
+        return response;
+    }
+
+    private String toKeyword(String search) {
+
+        if (search == null || search.isBlank()) {
+            return "%%";
+        }
+
+        return "%" + search.trim().toLowerCase() + "%";
+    }
+
     private Plafond findById(Integer plafondId) {
         return plafondRepository.findById(plafondId)
                 .orElseThrow(() -> BusinessException.notFound("Plafond with id " + plafondId + " not found"));

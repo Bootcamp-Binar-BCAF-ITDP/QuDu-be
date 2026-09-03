@@ -27,8 +27,6 @@ public class RoleService {
     private final MenuRepository menuRepository;
     private final RoleMenuRepository roleMenuRepository;
 
-    // readOnly transaction so the lazy roleMenus collection loads inside a session
-    // instead of relying on open-session-in-view.
     @Transactional(readOnly = true)
     public PageResponse<RoleResponse> getAllRoles(String search, Pageable pageable) {
 
@@ -37,10 +35,6 @@ public class RoleService {
         return PageResponse.of(roles, this::toResponse);
     }
 
-    /**
-     * Normalises the raw search term into a LIKE pattern.
-     * Null or blank -> "%%", which matches everything.
-     */
     private String toKeyword(String search) {
 
         if (search == null || search.isBlank()) {
