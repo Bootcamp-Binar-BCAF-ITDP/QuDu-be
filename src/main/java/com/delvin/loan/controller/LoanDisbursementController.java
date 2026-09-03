@@ -9,6 +9,7 @@ import com.delvin.loan.dto.response.loanresp.LoanDisbursementResponse;
 import com.delvin.loan.model.AppUser;
 import com.delvin.loan.service.LoanDisbursementService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -19,13 +20,10 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/loan-disbursements")
+@RequiredArgsConstructor
 public class LoanDisbursementController {
 
     private final LoanDisbursementService disbursementService;
-
-    public LoanDisbursementController(LoanDisbursementService disbursementService) {
-        this.disbursementService = disbursementService;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> getMyBucket(

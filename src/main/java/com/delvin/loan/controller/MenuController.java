@@ -7,6 +7,7 @@ import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.menu.MenuRequest;
 import com.delvin.loan.dto.response.menu.MenuResponse;
 import com.delvin.loan.service.MenuService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,15 +18,12 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/menus")
+@RequiredArgsConstructor
 public class MenuController {
 
     private static final Set<String> SORTABLE_FIELDS = Set.of("menuId", "menuName");
 
     private final MenuService menuService;
-
-    public MenuController(MenuService menuService) {
-        this.menuService = menuService;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<MenuResponse>>> getAllMenus(

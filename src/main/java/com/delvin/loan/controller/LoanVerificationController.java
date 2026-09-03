@@ -7,6 +7,7 @@ import com.delvin.loan.dto.response.loanresp.LoanVerificationResponse;
 import com.delvin.loan.model.AppUser;
 import com.delvin.loan.service.LoanVerificationService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -15,13 +16,10 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/loan-verifications")
+@RequiredArgsConstructor
 public class LoanVerificationController {
 
     private final LoanVerificationService verificationService;
-
-    public LoanVerificationController(LoanVerificationService verificationService) {
-        this.verificationService = verificationService;
-    }
 
     @PostMapping
     public ResponseEntity<ApiResponse<LoanVerificationResponse>> submit(

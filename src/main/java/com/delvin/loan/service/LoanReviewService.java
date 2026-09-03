@@ -10,25 +10,19 @@ import com.delvin.loan.model.LoanApplication;
 import com.delvin.loan.model.LoanReview;
 import com.delvin.loan.model.User;
 import com.delvin.loan.repository.LoanReviewRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
 @Service
+@RequiredArgsConstructor
 public class LoanReviewService {
 
     private final LoanReviewRepository reviewRepository;
     private final LoanApplicationService applicationService;
     private final LoanMapper mapper;
-
-    public LoanReviewService(LoanReviewRepository reviewRepository,
-                              LoanApplicationService applicationService,
-                              LoanMapper mapper) {
-        this.reviewRepository = reviewRepository;
-        this.applicationService = applicationService;
-        this.mapper = mapper;
-    }
 
     @Transactional
     public LoanReviewResponse submitReview(String marketingUserId, LoanReviewRequest request) {

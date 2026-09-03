@@ -10,6 +10,7 @@ import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.AppUser;
 import com.delvin.loan.service.LoanApplicationService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.data.domain.Pageable;
@@ -27,13 +28,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/loan-applications")
 @Slf4j
+@RequiredArgsConstructor
 public class LoanApplicationController {
 
     private final LoanApplicationService applicationService;
-
-    public LoanApplicationController(LoanApplicationService applicationService) {
-        this.applicationService = applicationService;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> getAllApplication(

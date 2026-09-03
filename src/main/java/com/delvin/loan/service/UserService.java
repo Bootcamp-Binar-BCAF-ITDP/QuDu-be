@@ -9,27 +9,19 @@ import com.delvin.loan.model.User;
 import com.delvin.loan.repository.BranchRepository;
 import com.delvin.loan.repository.RoleRepository;
 import com.delvin.loan.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
     private final BranchRepository branchRepository;
     private final RoleRepository roleRepository;
-
-    public UserService(UserRepository userRepository,
-                       BranchRepository branchRepository,
-                       RoleRepository roleRepository
-                       ) {
-
-        this.userRepository = userRepository;
-        this.branchRepository = branchRepository;
-        this.roleRepository = roleRepository;
-    }
 
     @Transactional(readOnly = true)
     public PageResponse<UserResponse> getAllUsers(String search, Pageable pageable) {

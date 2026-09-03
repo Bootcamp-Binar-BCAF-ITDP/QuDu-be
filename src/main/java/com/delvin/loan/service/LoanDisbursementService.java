@@ -14,6 +14,7 @@ import com.delvin.loan.repository.LoanApplicationRepository;
 import com.delvin.loan.repository.LoanDisbursementRepository;
 import com.delvin.loan.repository.LoanVerificationRepository;
 import com.delvin.loan.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.time.LocalDate;
 
 @Service
+@RequiredArgsConstructor
 public class LoanDisbursementService {
 
     private final LoanDisbursementRepository disbursementRepository;
@@ -34,23 +36,6 @@ public class LoanDisbursementService {
 
     private static final Logger log = LoggerFactory.getLogger(LoanDisbursementService.class);
     private final ApplicationEventPublisher events;
-
-    public LoanDisbursementService(
-            LoanDisbursementRepository disbursementRepository,
-            LoanVerificationRepository verificationRepository,
-            LoanApplicationService applicationService,
-            LoanMapper mapper,
-            UserRepository userRepository,
-            LoanApplicationRepository applicationRepository, ApplicationEventPublisher events
-    ) {
-        this.disbursementRepository = disbursementRepository;
-        this.verificationRepository = verificationRepository;
-        this.applicationService = applicationService;
-        this.mapper = mapper;
-        this.userRepository = userRepository;
-        this.applicationRepository = applicationRepository;
-        this.events = events;
-    }
 
     @Transactional
     public LoanDisbursementResponse disburse(

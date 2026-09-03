@@ -10,6 +10,7 @@ import com.delvin.loan.model.RoleMenu;
 import com.delvin.loan.repository.MenuRepository;
 import com.delvin.loan.repository.RoleMenuRepository;
 import com.delvin.loan.repository.RoleRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,20 +20,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class RoleService {
 
     private final RoleRepository roleRepository;
     private final MenuRepository menuRepository;
     private final RoleMenuRepository roleMenuRepository;
-
-    public RoleService(RoleRepository roleRepository,
-                       MenuRepository menuRepository,
-                       RoleMenuRepository roleMenuRepository) {
-
-        this.roleRepository = roleRepository;
-        this.menuRepository = menuRepository;
-        this.roleMenuRepository = roleMenuRepository;
-    }
 
     // readOnly transaction so the lazy roleMenus collection loads inside a session
     // instead of relying on open-session-in-view.

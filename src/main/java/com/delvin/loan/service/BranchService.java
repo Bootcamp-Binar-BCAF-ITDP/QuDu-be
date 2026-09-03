@@ -5,6 +5,7 @@ import com.delvin.loan.dto.request.branch.BranchRequest;
 import com.delvin.loan.dto.response.branch.BranchResponse;
 import com.delvin.loan.model.Branch;
 import com.delvin.loan.repository.BranchRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -12,13 +13,10 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class BranchService {
 
     private final BranchRepository branchRepository;
-
-    public BranchService(BranchRepository branchRepository) {
-        this.branchRepository = branchRepository;
-    }
 
     public PageResponse<BranchResponse> getAllBranches(String search, Pageable pageable) {
 

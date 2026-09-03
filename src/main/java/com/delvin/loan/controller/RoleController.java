@@ -7,6 +7,7 @@ import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.role.RoleRequest;
 import com.delvin.loan.dto.response.role.RoleResponse;
 import com.delvin.loan.service.RoleService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,15 +18,12 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/roles")
+@RequiredArgsConstructor
 public class RoleController {
 
     private static final Set<String> SORTABLE_FIELDS = Set.of("roleId", "roleName", "description");
 
     private final RoleService roleService;
-
-    public RoleController(RoleService roleService) {
-        this.roleService = roleService;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<RoleResponse>>> getAllRoles(

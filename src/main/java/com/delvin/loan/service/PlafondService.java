@@ -23,7 +23,6 @@ public class PlafondService {
     private final PlafondRepository plafondRepository;
 
     // Master data (admin)
-
     @Transactional(readOnly = true)
     public List<PlafondResponse> getAll(boolean activeOnly) {
 

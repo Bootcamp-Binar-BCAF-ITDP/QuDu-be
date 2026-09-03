@@ -8,6 +8,7 @@ import com.delvin.loan.repository.LoanApplicationRepository;
 import com.delvin.loan.repository.LoanApplicationRepository.DailyStatusCount;
 import com.delvin.loan.repository.LoanApplicationRepository.StatusCount;
 import com.delvin.loan.repository.LoanDisbursementRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,18 +19,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
+@RequiredArgsConstructor
 public class DashboardService {
 
     private final LoanApplicationRepository applicationRepository;
     private final LoanDisbursementRepository disbursementRepository;
-
-    public DashboardService(
-            LoanApplicationRepository applicationRepository,
-            LoanDisbursementRepository disbursementRepository
-    ) {
-        this.applicationRepository = applicationRepository;
-        this.disbursementRepository = disbursementRepository;
-    }
 
     @Transactional(readOnly = true)
     public DashboardResponse getDashboard(DashboardPeriod period) {

@@ -4,6 +4,7 @@ import com.delvin.loan.common.ApiResponse;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.response.loanresp.LoanDocumentResponse;
 import com.delvin.loan.service.LoanDocumentService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -12,13 +13,10 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/loan-applications/{applicationId}/documents")
+@RequiredArgsConstructor
 public class LoanDocumentController {
 
     private final LoanDocumentService documentService;
-
-    public LoanDocumentController(LoanDocumentService documentService) {
-        this.documentService = documentService;
-    }
 
     /** Customer uploads a supporting document (KTP, KK, selfie photo, etc). */
     @PostMapping(consumes = "multipart/form-data")

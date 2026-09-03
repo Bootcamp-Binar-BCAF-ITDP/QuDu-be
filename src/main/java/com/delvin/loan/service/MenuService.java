@@ -5,6 +5,7 @@ import com.delvin.loan.dto.request.menu.MenuRequest;
 import com.delvin.loan.dto.response.menu.MenuResponse;
 import com.delvin.loan.model.Menu;
 import com.delvin.loan.repository.MenuRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -12,13 +13,10 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class MenuService {
 
     private final MenuRepository menuRepository;
-
-    public MenuService(MenuRepository menuRepository) {
-        this.menuRepository = menuRepository;
-    }
 
     public PageResponse<MenuResponse> getAllMenus(String search, Pageable pageable) {
 

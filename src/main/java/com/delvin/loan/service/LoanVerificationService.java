@@ -10,6 +10,7 @@ import com.delvin.loan.model.LoanApplication;
 import com.delvin.loan.model.LoanVerification;
 import com.delvin.loan.model.User;
 import com.delvin.loan.repository.LoanVerificationRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,19 +19,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class LoanVerificationService {
 
     private final LoanVerificationRepository verificationRepository;
     private final LoanApplicationService applicationService;
     private final LoanMapper mapper;
-
-    public LoanVerificationService(LoanVerificationRepository verificationRepository,
-                                    LoanApplicationService applicationService,
-                                    LoanMapper mapper) {
-        this.verificationRepository = verificationRepository;
-        this.applicationService = applicationService;
-        this.mapper = mapper;
-    }
 
     @Transactional
     public LoanVerificationResponse submitVerification(String backOfficeUserId, LoanVerificationRequest request) {

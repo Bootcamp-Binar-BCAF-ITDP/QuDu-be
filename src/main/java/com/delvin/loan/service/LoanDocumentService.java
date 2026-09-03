@@ -5,6 +5,7 @@ import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.LoanApplication;
 import com.delvin.loan.model.LoanDocument;
 import com.delvin.loan.repository.LoanDocumentRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class LoanDocumentService {
 
     private final LoanDocumentRepository documentRepository;
@@ -29,18 +31,6 @@ public class LoanDocumentService {
     @Value("${loan.documents.storage-path:uploads/loan-documents}")
     private String storagePath;
 
-    public LoanDocumentService(LoanDocumentRepository documentRepository,
-                                LoanApplicationService applicationService,
-                                LoanMapper mapper) {
-        this.documentRepository = documentRepository;
-        this.applicationService = applicationService;
-        this.mapper = mapper;
-    }
-
-    /**
-     * Step 2: customer uploads a supporting document (KTP, KK, selfie, etc)
-     * for an application they've already created.
-     */
     @Transactional
     public LoanDocumentResponse uploadDocument(String applicationId, String documentType, MultipartFile file) {
         if (file == null || file.isEmpty()) {

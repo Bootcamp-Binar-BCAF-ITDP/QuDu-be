@@ -10,6 +10,7 @@ import com.delvin.loan.model.AppUser;
 import com.delvin.loan.service.LoanApplicationService;
 import com.delvin.loan.service.LoanReviewService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -19,16 +20,11 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/marketing")
+@RequiredArgsConstructor
 public class MarketingController {
 
     private final LoanApplicationService applicationService;
     private final LoanReviewService loanReviewService;
-
-    public MarketingController(LoanApplicationService applicationService,
-                               LoanReviewService loanReviewService) {
-        this.applicationService = applicationService;
-        this.loanReviewService = loanReviewService;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> marketingBucket(

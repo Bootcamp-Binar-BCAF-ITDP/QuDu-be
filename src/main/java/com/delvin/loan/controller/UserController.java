@@ -7,6 +7,7 @@ import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.user.UserRequest;
 import com.delvin.loan.dto.response.user.UserResponse;
 import com.delvin.loan.service.UserService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,15 +18,12 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/users")
+@RequiredArgsConstructor
 public class UserController {
 
     private static final Set<String> SORTABLE_FIELDS = Set.of("userId", "username", "email", "fullName", "phoneNumber", "isActive", "branch.branchName", "role.roleName");
 
     private final UserService userService;
-
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<UserResponse>>> getAllUsers(

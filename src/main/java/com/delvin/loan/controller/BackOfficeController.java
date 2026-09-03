@@ -6,6 +6,7 @@ import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
 import com.delvin.loan.model.AppUser;
 import com.delvin.loan.service.LoanApplicationService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -20,13 +21,10 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/bo")
+@RequiredArgsConstructor
 public class BackOfficeController {
 
     private final LoanApplicationService applicationService;
-
-    public BackOfficeController(LoanApplicationService applicationService) {
-        this.applicationService = applicationService;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> backOfficeBucket(

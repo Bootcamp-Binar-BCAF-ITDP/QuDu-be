@@ -7,6 +7,7 @@ import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.branch.BranchRequest;
 import com.delvin.loan.dto.response.branch.BranchResponse;
 import com.delvin.loan.service.BranchService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,15 +17,12 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/branches")
+@RequiredArgsConstructor
 public class BranchController {
 
     private static final Set<String> SORTABLE_FIELDS = Set.of("branchId", "branchCode", "branchName", "location", "email", "phoneNumber");
 
     private final BranchService branchService;
-
-    public BranchController(BranchService branchService) {
-        this.branchService = branchService;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<BranchResponse>>> getAllBranches(
