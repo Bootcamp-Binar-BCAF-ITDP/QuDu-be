@@ -34,13 +34,19 @@ public class AuthService {
 
     private static final String INVALID_CREDENTIALS = "Username atau password salah";
 
+    private static final int RESET_TOKEN_TTL_MINUTES = 15;
+
+   private static final int MAX_RESET_ATTEMPTS = 5;
+
+    private static final java.security.SecureRandom RESET_CODES = new java.security.SecureRandom();
+
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final BranchRepository branchRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailService emailService;
     private final CustomerRepository customerRepository;
-    private final PlafondRepository plafondRepository;
+    private final PlafondService plafondService;
 
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -144,15 +150,11 @@ public class AuthService {
             throw BusinessException.conflict("NIK sudah digunakan");
         }
 
-        Plafond plafond = plafondRepository
-                .findById(1)
-                .orElseThrow(() -> new IllegalStateException("Default plafond (id=1) is missing from the database"));
-
         Customer customer = new Customer();
 
         customer.setCustomerId(UUID.randomUUID().toString());
 
-        customer.setPlafond(plafond);
+        plafondService.assignDefaultPlafond(customer);
 
         customer.setCustomerName(
                 request.getFullName()
@@ -356,7 +358,8 @@ public class AuthService {
             passwordResetTokenRepository.deleteByCustomer(customer);
         }
 
-        String token = UUID.randomUUID().toString();
+        boolean isCustomer = accountType == AccountType.CUSTOMER;
+        String token = isCustomer ? generateResetCode() : UUID.randomUUID().toString();
 
         PasswordResetToken resetToken = new PasswordResetToken();
 
@@ -364,12 +367,61 @@ public class AuthService {
         resetToken.setAccountType(accountType);
         resetToken.setUser(user);
         resetToken.setCustomer(customer);
-        resetToken.setExpiryDate(LocalDateTime.now().plusMinutes(15));
+        resetToken.setExpiryDate(LocalDateTime.now().plusMinutes(RESET_TOKEN_TTL_MINUTES));
         resetToken.setUsed(false);
+        resetToken.setAttempts(0);
 
         passwordResetTokenRepository.save(resetToken);
 
-        emailService.sendResetPasswordEmail(email, token);
+        if (isCustomer) {
+            emailService.sendResetPasswordCodeEmail(email, token, RESET_TOKEN_TTL_MINUTES);
+        } else {
+            emailService.sendResetPasswordEmail(email, token);
+        }
+    }
+
+    private String generateResetCode() {
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+
+            String code = String.format("%06d", RESET_CODES.nextInt(1_000_000));
+
+            if (passwordResetTokenRepository.findByToken(code).isEmpty()) {
+                return code;
+            }
+        }
+
+        throw new IllegalStateException("Could not allocate an unused reset code");
+    }
+
+    private PasswordResetToken resolveResetToken(ResetPasswordRequest request) {
+
+        String email = request.getEmail();
+
+        if (email == null || email.isBlank()) {
+            return passwordResetTokenRepository
+                    .findByToken(request.getToken())
+                    .orElseThrow(() -> new IllegalArgumentException("Token reset password tidak valid"));
+        }
+
+       Customer customer = customerRepository.findByEmail(email.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Kode reset password tidak valid"));
+
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByCustomer(customer)
+                .orElseThrow(() -> new IllegalArgumentException("Kode reset password tidak valid"));
+
+        if (resetToken.getAttempts() >= MAX_RESET_ATTEMPTS) {
+            throw new IllegalArgumentException(
+                    "Kode reset password dinonaktifkan karena terlalu banyak percobaan. "
+                            + "Silakan minta kode baru.");
+        }
+
+        if (!resetToken.getToken().equals(request.getToken())) {
+            passwordResetTokenRepository.incrementAttempts(resetToken.getId());
+            throw new IllegalArgumentException("Kode reset password tidak valid");
+        }
+
+        return resetToken;
     }
 
     @Transactional
@@ -381,14 +433,7 @@ public class AuthService {
             throw new IllegalArgumentException("Password dan konfirmasi password tidak sama");
         }
 
-        PasswordResetToken resetToken =
-                passwordResetTokenRepository
-                        .findByToken(request.getToken())
-                        .orElseThrow(() ->
-                                new IllegalArgumentException(
-                                        "Token reset password tidak valid"
-                                )
-                        );
+        PasswordResetToken resetToken = resolveResetToken(request);
 
         if (Boolean.TRUE.equals(resetToken.getUsed())) {
 

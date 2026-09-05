@@ -25,7 +25,7 @@ public class PasswordResetToken {
     private AccountType accountType;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id")
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -37,4 +37,11 @@ public class PasswordResetToken {
 
     @Column(nullable = false)
     private Boolean used = false;
+
+    @Column(name = "attempts")
+    private Integer attempts = 0;
+
+    public int getAttempts() {
+        return attempts == null ? 0 : attempts;
+    }
 }

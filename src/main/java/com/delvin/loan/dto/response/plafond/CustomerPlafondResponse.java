@@ -20,5 +20,9 @@ public class CustomerPlafondResponse {
 
     private BigDecimal approvedLimit;
 
+    private BigDecimal usedLimit;
+
+    private BigDecimal availableLimit;
+
     private PlafondResponse plafond;
 }

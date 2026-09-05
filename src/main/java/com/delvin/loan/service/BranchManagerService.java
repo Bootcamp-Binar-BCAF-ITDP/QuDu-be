@@ -8,10 +8,13 @@ import com.delvin.loan.dto.request.loanreq.BranchManagerDecisionRequest;
 import com.delvin.loan.dto.request.plafond.PlafondDecisionRequest;
 import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
 import com.delvin.loan.dto.response.plafond.PlafondRequestResponse;
+import com.delvin.loan.event.LoanStatusChangedEvent;
+import com.delvin.loan.event.PlafondDecisionEvent;
 import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.*;
 import com.delvin.loan.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,7 @@ public class BranchManagerService {
     private final LoanApplicationRepository applicationRepository;
     private final LoanDecisionRepository loanDecisionRepository;
     private final LoanMapper mapper;
+    private final ApplicationEventPublisher events;
 
     // APPLICATION
     public PageResponse<LoanApplicationResponse> listBranchManagerBucket(
@@ -107,13 +111,23 @@ public class BranchManagerService {
 
         loanDecisionRepository.save(decision);
 
+        boolean approved = Boolean.TRUE.equals(request.getApprove());
+
         application.setStatus(
-                Boolean.TRUE.equals(request.getApprove())
+                approved
                         ? LoanStatus.PENDING_BACK_OFFICE
                         : LoanStatus.REJECTED_BY_BRANCH_MANAGER
         );
 
         applicationRepository.save(application);
+
+        if (!approved) {
+            events.publishEvent(LoanStatusChangedEvent.of(
+                    application,
+                    decision.getDecisionNote(),
+                    application.getRequestedAmount()
+            ));
+        }
 
         return mapper.toApplicationResponse(application);
     }
@@ -149,7 +163,11 @@ public class BranchManagerService {
         request.setReviewedBy(findUser(userId));
         request.setNotes(decision.getNotes());
 
-        return PlafondRequestResponse.from(plafondRequestRepository.save(request));
+        CustomerPlafondRequest decided = plafondRequestRepository.save(request);
+
+        events.publishEvent(PlafondDecisionEvent.of(decided));
+
+        return PlafondRequestResponse.from(decided);
     }
 
     private void approve(CustomerPlafondRequest request, PlafondDecisionRequest decision) {

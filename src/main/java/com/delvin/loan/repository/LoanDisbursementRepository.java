@@ -22,4 +22,13 @@ public interface LoanDisbursementRepository extends JpaRepository<LoanDisburseme
               and d.disbursementDate between :from and :to
             """)
     BigDecimal sumDisbursedBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    @Query("""
+            select coalesce(sum(d.disbursedAmount), 0)
+            from LoanDisbursement d
+            where d.application.customer.customerId = :customerId
+              and d.application.status = :status
+            """)
+    BigDecimal sumDisbursedForCustomer(@Param("customerId") String customerId,
+                                       @Param("status") String status);
 }

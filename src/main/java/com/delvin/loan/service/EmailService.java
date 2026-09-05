@@ -49,4 +49,39 @@ public class EmailService {
 
         mailSender.send(message);
     }
+
+    public void sendResetPasswordCodeEmail(
+            String email,
+            String code,
+            int validMinutes
+    ) {
+
+        SimpleMailMessage message =
+                new SimpleMailMessage();
+
+        message.setFrom(fromEmail);
+        message.setTo(email);
+        message.setSubject("Kode Reset Password - Quick Duit");
+
+        message.setText("""
+                Halo,
+
+                Kami menerima permintaan untuk mengatur ulang kata sandi Anda.
+
+                Kode verifikasi Anda:
+
+                    %s
+
+                Masukkan kode ini di aplikasi QuickDuit. Kode berlaku %d menit
+                dan hanya bisa dipakai satu kali.
+
+                Jika Anda tidak meminta pengaturan ulang kata sandi, abaikan
+                email ini - kata sandi Anda tidak berubah.
+
+                Jangan bagikan kode ini kepada siapa pun, termasuk yang mengaku
+                sebagai petugas QuickDuit.
+                """.formatted(code, validMinutes));
+
+        mailSender.send(message);
+    }
 }

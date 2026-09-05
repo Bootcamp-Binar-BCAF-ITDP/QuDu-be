@@ -48,6 +48,5 @@ public class PlafondRequest {
     @DecimalMin(value = "0.0", message = "adminFee cannot be negative")
     private BigDecimal adminFee;
 
-    @NotNull(message = "isActive is Required")
     private Boolean isActive;
 }

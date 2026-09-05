@@ -5,12 +5,14 @@ import com.delvin.loan.common.RecommendationStatus;
 import com.delvin.loan.common.RoleName;
 import com.delvin.loan.dto.request.loanreq.LoanReviewRequest;
 import com.delvin.loan.dto.response.loanresp.LoanReviewResponse;
+import com.delvin.loan.event.LoanStatusChangedEvent;
 import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.LoanApplication;
 import com.delvin.loan.model.LoanReview;
 import com.delvin.loan.model.User;
 import com.delvin.loan.repository.LoanReviewRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ public class LoanReviewService {
     private final LoanReviewRepository reviewRepository;
     private final LoanApplicationService applicationService;
     private final LoanMapper mapper;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public LoanReviewResponse submitReview(String marketingUserId, LoanReviewRequest request) {
@@ -59,11 +62,21 @@ public class LoanReviewService {
 
         reviewRepository.save(review);
 
+        boolean accepted = RecommendationStatus.ACCEPT.equals(recommendation);
+
         application.setStatus(
-                RecommendationStatus.ACCEPT.equals(recommendation)
+                accepted
                         ? LoanStatus.PENDING_BRANCH_MANAGER
                         : LoanStatus.REJECTED_BY_MARKETING
         );
+
+        if (!accepted) {
+            events.publishEvent(LoanStatusChangedEvent.of(
+                    application,
+                    review.getReviewNote(),
+                    application.getRequestedAmount()
+            ));
+        }
 
         return mapper.toReviewResponse(review);
     }

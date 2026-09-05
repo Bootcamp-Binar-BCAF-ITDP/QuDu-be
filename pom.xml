@@ -30,6 +30,7 @@
         <java.version>25</java.version>
         <kotlin.version>2.3.20</kotlin.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <firebase.admin.version>9.4.1</firebase.admin.version>
     </properties>
     <dependencies>
         <dependency>
@@ -144,6 +145,11 @@
             <artifactId>spring-boot-starter-validation-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>${firebase.admin.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -222,12 +228,27 @@
                             </annotationProcessorPaths>
                         </configuration>
                     </execution>
+                    <!--
+                        These two run in the same phases as default-compile /
+                        default-testCompile above and recompile the same sources.
+                        They need the Lombok processor as well: without it the
+                        second pass sees no generated getters and the build fails
+                        with hundreds of "cannot find symbol" errors.
+                    -->
                     <execution>
                         <id>compile</id>
                         <phase>compile</phase>
                         <goals>
                             <goal>compile</goal>
                         </goals>
+                        <configuration>
+                            <annotationProcessorPaths>
+                                <path>
+                                    <groupId>org.projectlombok</groupId>
+                                    <artifactId>lombok</artifactId>
+                                </path>
+                            </annotationProcessorPaths>
+                        </configuration>
                     </execution>
                     <execution>
                         <id>testCompile</id>
@@ -235,6 +256,14 @@
                         <goals>
                             <goal>testCompile</goal>
                         </goals>
+                        <configuration>
+                            <annotationProcessorPaths>
+                                <path>
+                                    <groupId>org.projectlombok</groupId>
+                                    <artifactId>lombok</artifactId>
+                                </path>
+                            </annotationProcessorPaths>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

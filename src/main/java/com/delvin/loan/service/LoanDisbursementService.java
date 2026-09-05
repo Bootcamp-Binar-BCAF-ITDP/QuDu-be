@@ -7,7 +7,7 @@ import com.delvin.loan.common.RoleName;
 import com.delvin.loan.dto.request.loanreq.LoanDisbursementRequest;
 import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
 import com.delvin.loan.dto.response.loanresp.LoanDisbursementResponse;
-import com.delvin.loan.event.LoanDisbursedEvent;
+import com.delvin.loan.event.LoanStatusChangedEvent;
 import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.*;
 import com.delvin.loan.repository.LoanApplicationRepository;
@@ -99,23 +99,19 @@ public class LoanDisbursementService {
         application.setStatus(approved ? LoanStatus.DISBURSED : LoanStatus.REJECTED_BY_BACK_OFFICE);
         applicationRepository.save(application);
 
-        if (approved) {
-            Customer customer = application.getCustomer();
-            String email = customer == null ? null : customer.getEmail();
+        Customer customer = application.getCustomer();
 
-            if (email == null || email.isBlank()) {
-                log.warn("Application {} was disbursed but the customer has no email on file",
-                        application.getApplicationId());
-            } else {
-                events.publishEvent(new LoanDisbursedEvent(
-                        application.getApplicationId(),
-                        customer.getCustomerName(),
-                        email,
-                        disbursement.getDisbursedAmount(),
-                        disbursement.getBankName(),
-                        disbursement.getAccountNumber()
-                ));
-            }
+        if (customer == null) {
+            log.warn("Application {} reached {} but has no customer attached",
+                    application.getApplicationId(), application.getStatus());
+        } else {
+            events.publishEvent(LoanStatusChangedEvent.of(
+                    application,
+                    disbursement.getDecisionNote(),
+                    approved
+                            ? disbursement.getDisbursedAmount()
+                            : application.getRequestedAmount()
+            ));
         }
 
         return mapper.toDisbursementResponse(disbursement);
