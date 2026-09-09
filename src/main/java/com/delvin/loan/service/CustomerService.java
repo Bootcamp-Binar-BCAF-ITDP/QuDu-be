@@ -53,10 +53,6 @@ public class CustomerService {
         Customer customer = customerRepository.findById(request.getCustomerId())
                 .orElseThrow(() -> BusinessException.notFound("Customer not found: " + request.getCustomerId()));
 
-        // Every required paper, not just the identity ones. Checked before the
-        // row exists so an application can never reach marketing with nothing
-        // attached - the payslip used to be uploaded after creation, which is
-        // exactly how empty applications got in.
         customerDocumentService.requireCompleteForSubmission(customer.getCustomerId());
 
         validateAgainstPlafond(customer, request.getRequestedAmount(), request.getTenor());
@@ -195,10 +191,6 @@ public class CustomerService {
 
         CustomerPlafondRequest saved = plafondRequestRepository.save(request);
 
-        // A limit increase is a credit decision like any other, so the branch
-        // manager gets the same paperwork a loan application would carry -
-        // snapshotted here so replacing a payslip later cannot rewrite the
-        // evidence behind a decision already taken.
         saved.setDocuments(customerDocumentService.copyDocumentsTo(saved));
 
         return PlafondRequestResponse.from(saved);

@@ -28,7 +28,6 @@ public class AppUserDetailsService implements UserDetailsService {
     ) {
 
         // CHECK INTERNAL USER
-
         User user = userRepository
                 .findByUsernameOrEmail(usernameOrEmail, usernameOrEmail)
                 .orElse(null);
@@ -57,7 +56,6 @@ public class AppUserDetailsService implements UserDetailsService {
         }
 
         // CHECK CUSTOMER
-
         Customer customer = customerRepository
                 .findByEmail(usernameOrEmail)
                 .orElseThrow(() ->

@@ -143,26 +143,10 @@ public class AuthService {
                 .build();
     }
 
-    /**
-     * Issues the code that has to accompany a customer registration.
-     *
-     * Unlike forgot-password, this one <em>does</em> say whether the address is
-     * already taken. That is deliberate and requested: a signup form has to tell
-     * you the email is in use or you cannot proceed, and every registration form
-     * on the web leaks exactly this much. The trade is enumeration of registered
-     * addresses, which is why the same honesty is not extended to the reset flow.
-     */
     @Transactional
     public void requestRegistrationOtp(String rawEmail) {
-
-        // Trimmed but deliberately not lower-cased: email lookups everywhere in
-        // this system are case-sensitive, so folding case here would let an
-        // address pass this check and then fail login, or vice versa. The app
-        // sends the same string to both endpoints, which is all this flow needs.
         String email = rawEmail.trim();
 
-        // Mirrors exactly what registerCustomer checks. Checking more here would
-        // turn away addresses that registration would then have accepted.
         if (customerRepository.existsByEmail(email)) {
             throw BusinessException.conflict("That email is already registered");
         }
@@ -184,22 +168,12 @@ public class AuthService {
         try {
             emailService.sendRegistrationOtpEmail(email, otp.getCode(), OtpCodes.TTL_MINUTES);
         } catch (Exception e) {
-            // Throwing rolls the saved row back, which is what we want: a code
-            // nobody received must not sit there looking valid. Unlike
-            // forgot-password there is nothing to hide by failing loudly - the
-            // caller already knows whether the address is taken.
             log.error("Could not send registration OTP to {}", email, e);
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
                     "The code could not be sent. Please try again shortly.");
         }
     }
 
-    /**
-     * Consumes the registration code, or refuses the registration.
-     *
-     * Looked up by email rather than by code so a wrong guess has a row to be
-     * counted against - the same reasoning as resolveResetToken.
-     */
     private void consumeRegistrationOtp(String email, String submitted) {
 
         if (submitted == null || submitted.isBlank()) {
@@ -241,8 +215,6 @@ public class AuthService {
             throw BusinessException.conflict("That email is already registered");
         }
 
-        // Before the NIK check on purpose: a wrong code should not be told
-        // whether the NIK it came with is already on file.
         consumeRegistrationOtp(email, request.getOtp());
 
         if (customerRepository.existsByNik(request.getNik())) {

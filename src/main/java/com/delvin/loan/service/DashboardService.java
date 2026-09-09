@@ -90,7 +90,6 @@ public class DashboardService {
     }
 
     // ---- donut ----
-
     private List<DashboardResponse.StatusSlice> slices(Map<StatusGroup, Long> counts, long total) {
         return List.of(
                 slice("pending", "Pending", counts.getOrDefault(StatusGroup.PENDING, 0L), total),

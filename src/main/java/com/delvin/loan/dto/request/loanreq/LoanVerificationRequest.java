@@ -5,7 +5,6 @@ import lombok.Setter;
 
 import jakarta.validation.constraints.NotBlank;
 
-/** Body for a back-office user recording the outcome of a verification call. */
 @Getter
 @Setter
 public class LoanVerificationRequest {
@@ -13,7 +12,6 @@ public class LoanVerificationRequest {
     @NotBlank(message = "applicationId is required")
     private String applicationId;
 
-    /** One of CallStatus.CAN_BE_CONTACTED / NADA_SAMBUNG_TIDAK_DIANGKAT / SALAH_SAMBUNG */
     @NotBlank(message = "callStatus is required")
     private String callStatus;
 

@@ -27,7 +27,6 @@ public class MenuService {
         return PageResponse.of(menus, this::toResponse);
     }
 
-    /** Every menu, unpaginated — for the role modal's access list. */
     public List<MenuResponse> getMenuOptions() {
 
         return menuRepository.findAllByOrderByMenuNameAsc()

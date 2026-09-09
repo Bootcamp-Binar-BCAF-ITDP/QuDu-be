@@ -36,7 +36,6 @@ public class MarketingController {
                 applicationService.listMarketingBucket(pageable));
     }
 
-    /** Marketing user accepts or rejects an application in the CHECKING bucket. */
     @PostMapping
     public ResponseEntity<ApiResponse<LoanReviewResponse>> submit(
             @AuthenticationPrincipal AppUser appUser,

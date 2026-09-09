@@ -38,14 +38,6 @@ public class PlafondService {
         return PageResponse.of(plafonds, this::toResponse);
     }
 
-    /**
-     * The tier table as a product rate card, for the loan simulator.
-     *
-     * Deliberately readable without a login: the simulator on the customer app
-     * runs before anyone signs in, and these are published product terms - the
-     * same numbers a brochure would carry - not customer data. Inactive tiers
-     * are left out so a withdrawn product is never quoted.
-     */
     @Transactional(readOnly = true)
     public List<PlafondResponse> catalog() {
         return plafondRepository.findAllByIsActiveTrueOrderByLevelAsc().stream()

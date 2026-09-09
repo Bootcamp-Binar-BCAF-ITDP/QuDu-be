@@ -19,10 +19,6 @@ public class LoanVerification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer verificationId;
 
-    // NOTE: added - the original entity had no link back to the application
-    // being verified, which is required so back office can list/retry calls
-    // per application and so the disbursement step knows which verification
-    // record to reference.
     @ManyToOne
     @JoinColumn(name = "application_id")
     private LoanApplication application;

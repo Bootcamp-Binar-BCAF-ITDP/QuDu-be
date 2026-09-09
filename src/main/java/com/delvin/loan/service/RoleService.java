@@ -44,11 +44,6 @@ public class RoleService {
         return "%" + search.trim().toLowerCase() + "%";
     }
 
-    /**
-     * Every role, unpaginated — for select inputs.
-     * Skips the menus mapping so a dropdown does not drag the whole
-     * role_menu graph along with it.
-     */
     @Transactional(readOnly = true)
     public List<RoleResponse> getRoleOptions() {
 

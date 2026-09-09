@@ -21,7 +21,6 @@ public interface RoleRepository extends JpaRepository<Role, Integer> {
             """)
     Page<Role> search(@Param("keyword") String keyword, Pageable pageable);
 
-    /** Unpaginated list for dropdowns. */
     List<Role> findAllByOrderByRoleNameAsc();
 
     Optional<Role> findByRoleName(String roleName);

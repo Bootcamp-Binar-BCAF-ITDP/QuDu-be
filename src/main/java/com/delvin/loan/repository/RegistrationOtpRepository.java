@@ -16,13 +16,6 @@ public interface RegistrationOtpRepository extends JpaRepository<RegistrationOtp
 
     void deleteByEmail(String email);
 
-    /**
-     * Counts a wrong code against the address.
-     *
-     * REQUIRES_NEW because the caller throws straight afterwards to reject the
-     * attempt, and that rollback would otherwise take the increment with it -
-     * leaving the counter stuck at zero and the six-digit code unmetered.
-     */
     @Modifying
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Query("update RegistrationOtp o set o.attempts = o.attempts + 1 where o.id = :id")

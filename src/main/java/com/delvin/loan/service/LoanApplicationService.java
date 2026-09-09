@@ -158,7 +158,6 @@ public class LoanApplicationService {
             return null;
         }
 
-        // Escape LIKE wildcards typed by the user so they are matched literally.
         String escaped = trimmed
                 .replace("\\", "\\\\")
                 .replace("%", "\\%")

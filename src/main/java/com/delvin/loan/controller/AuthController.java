@@ -26,14 +26,6 @@ public class AuthController {
 
     private final AuthService authService;
 
-    /**
-     * Step 1 of customer signup: prove the address is reachable and unused.
-     *
-     * Answers 409 "Email sudah terdaftar" when it is taken, which is what lets
-     * the app send the visitor to the login screen instead of the code step.
-     * Staff registration does not come through here - it is created by a
-     * superadmin and carries no OTP.
-     */
     @PostMapping("/register/otp")
     public ResponseEntity<ApiResponse<Void>> requestRegistrationOtp(
             @Valid @RequestBody RegistrationOtpRequest request) {

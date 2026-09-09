@@ -34,3 +34,6 @@ build/
 
 
 /uploads/
+
+firebase-credentials.json
+application.properties

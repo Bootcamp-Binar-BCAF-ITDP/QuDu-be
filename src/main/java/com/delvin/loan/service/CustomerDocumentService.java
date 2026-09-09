@@ -72,16 +72,11 @@ public class CustomerDocumentService {
                 .toList();
     }
 
-    /** Identity papers still missing. Drives the "complete your profile" prompt. */
     @Transactional(readOnly = true)
     public List<String> missingRequiredTypes(String customerId) {
         return missingOf(customerId, DocumentType.PROFILE_TYPES);
     }
 
-    /**
-     * Everything still missing before a loan application or a limit increase may
-     * be filed - identity papers *and* financial evidence.
-     */
     @Transactional(readOnly = true)
     public List<String> missingForSubmission(String customerId) {
         return missingOf(customerId, DocumentType.REQUIRED_FOR_SUBMISSION);
@@ -99,12 +94,6 @@ public class CustomerDocumentService {
         }
     }
 
-    /**
-     * Financial evidence that is on file but too old to stand behind a decision.
-     *
-     * Identity papers are never listed here - see
-     * DocumentType.SUBMISSION_FRESHNESS_DAYS for why only these expire.
-     */
     @Transactional(readOnly = true)
     public List<String> staleForSubmission(String customerId) {
 
@@ -118,16 +107,6 @@ public class CustomerDocumentService {
                 .toList();
     }
 
-    /**
-     * Refuses a submission that has nothing current for the branch manager to
-     * look at.
-     *
-     * Checked before anything is written, which is the whole point: an
-     * application or limit request created first and documented later is exactly
-     * the empty submission this exists to prevent. Missing and stale are reported
-     * separately because the fix differs - one is "upload this", the other is
-     * "upload this again".
-     */
     public void requireCompleteForSubmission(String customerId) {
 
         List<String> missing = missingForSubmission(customerId);
@@ -167,14 +146,6 @@ public class CustomerDocumentService {
                 .toList();
     }
 
-    /**
-     * Freezes the customer's paperwork onto a limit-increase request.
-     *
-     * The loan-application counterpart of this is
-     * {@link #copyProfileDocumentsTo}; both exist so a decision can always be
-     * traced to the documents it was actually made on, even after the customer
-     * replaces them.
-     */
     public List<PlafondRequestDocument> copyDocumentsTo(CustomerPlafondRequest request) {
 
         String customerId = request.getCustomer().getCustomerId();

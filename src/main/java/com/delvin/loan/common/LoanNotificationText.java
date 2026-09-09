@@ -92,10 +92,6 @@ public final class LoanNotificationText {
         };
     }
 
-    /**
-     * Amounts stay in rupiah regardless of the interface language - the money
-     * itself is IDR, so an en-US format here would print the wrong currency.
-     */
     public static String rupiah(BigDecimal amount) {
         if (amount == null) return "-";
         NumberFormat format = NumberFormat.getCurrencyInstance(Locale.of("id", "ID"));
