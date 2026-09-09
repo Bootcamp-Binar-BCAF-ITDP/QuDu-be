@@ -10,19 +10,19 @@ import lombok.Setter;
 @Setter
 public class ResetPasswordRequest {
 
-    @Email(message = "Format email tidak valid")
+    @Email(message = "That email address is not valid")
     private String email;
 
-    @NotBlank(message = "Token wajib diisi")
+    @NotBlank(message = "Token is required")
     private String token;
 
-    @NotBlank(message = "Password baru wajib diisi")
+    @NotBlank(message = "New password is required")
     @Size(
             min = 8,
-            message = "Password minimal 8 karakter"
+            message = "Password must be at least 8 characters"
     )
     private String newPassword;
 
-    @NotBlank(message = "Konfirmasi password wajib diisi")
+    @NotBlank(message = "Password confirmation is required")
     private String confirmPassword;
 }

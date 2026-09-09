@@ -8,7 +8,14 @@ public class SecurityRoutes {
     // PUBLIC
     public static final String[] PUBLIC = {
             "/api/auth/**",
-            "/api/dashboard/**"
+            "/api/dashboard/**",
+
+            // Product rate card for the customer app's loan simulator, which
+            // runs before anyone signs in. Note the exact path: the rest of
+            // /api/plafonds/** stays SUPERADMIN, so create/update/delete are
+            // still closed. This entry works only because permitAll() is the
+            // first matcher in SecurityConfig.
+            "/api/plafonds/catalog"
     };
 
     // CUSTOMER

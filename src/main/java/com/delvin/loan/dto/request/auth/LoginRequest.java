@@ -9,12 +9,12 @@ import lombok.Setter;
 @Getter
 @Setter
 public class LoginRequest {
-    @NotBlank(message = "Username atau email wajib diisi")
+    @NotBlank(message = "Username or email is required")
     private String usernameOrEmail;
 
-    @NotBlank(message = "Password wajib diisi")
+    @NotBlank(message = "Password is required")
     private String password;
 
-    @NotNull(message = "Account type wajib diisi")
+    @NotNull(message = "Account type is required")
     private AccountType accountType;
 }

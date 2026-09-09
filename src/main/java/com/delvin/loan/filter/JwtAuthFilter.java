@@ -24,7 +24,7 @@ public class JwtAuthFilter  extends OncePerRequestFilter {
     private static final String PREFIX = "Bearer ";
 
     private static final String TOKEN_INVALID =
-            "Token tidak valid";
+            "Invalid token";
 
     private final JwtService jwtService;
     private final AppUserDetailsService appUserDetailsService;

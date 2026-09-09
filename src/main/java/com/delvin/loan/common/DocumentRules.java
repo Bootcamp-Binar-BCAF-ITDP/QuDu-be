@@ -29,21 +29,21 @@ public final class DocumentRules {
     public static void validate(MultipartFile file) {
 
         if (file == null || file.isEmpty()) {
-            throw BusinessException.badRequest("File wajib dilampirkan");
+            throw BusinessException.badRequest("A file is required");
         }
 
         if (file.getSize() > MAX_FILE_BYTES) {
             throw BusinessException.unprocessable(
-                    "Ukuran berkas " + (file.getSize() / 1024) + " KB melebihi batas "
-                            + maxFileSizeLabel() + ". Kompres atau potret ulang dengan resolusi lebih kecil.");
+                    "The file is " + (file.getSize() / 1024) + " KB, over the "
+                            + maxFileSizeLabel() + " limit. Compress it or retake the photo at a lower resolution.");
         }
 
         String contentType = file.getContentType();
 
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase())) {
             throw BusinessException.badRequest(
-                    "Format berkas " + (contentType == null ? "tidak dikenali" : contentType)
-                            + " tidak didukung. Gunakan foto (JPG, PNG, WEBP) atau PDF.");
+                    "File format " + (contentType == null ? "unknown" : contentType)
+                            + " is not supported. Use a photo (JPG, PNG, WEBP) or a PDF.");
         }
     }
 }

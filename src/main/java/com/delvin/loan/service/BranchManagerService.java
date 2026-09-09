@@ -17,10 +17,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -29,6 +31,8 @@ import java.time.LocalDateTime;
 public class BranchManagerService {
 
     private final CustomerPlafondRequestRepository plafondRequestRepository;
+    private final PlafondRequestDocumentRepository plafondRequestDocumentRepository;
+    private final DocumentStorageService documentStorage;
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final PlafondService plafondService;
@@ -192,6 +196,23 @@ public class BranchManagerService {
         request.setRequestedPlafond(granted);
         request.setApprovedAmount(approvedAmount);
     }
+
+    @Transactional(readOnly = true)
+    public StoredPlafondDocument loadDocumentContent(String requestId, Integer documentId) {
+
+        PlafondRequestDocument document = plafondRequestDocumentRepository
+                .findByDocumentIdAndRequest_RequestId(documentId, requestId)
+                .orElseThrow(() -> BusinessException.notFound("Document not found: " + documentId));
+
+        Path path = documentStorage.resolveStored(document.getFileUrl());
+
+        return new StoredPlafondDocument(
+                path,
+                documentStorage.contentTypeOf(path),
+                document.getFileName() == null ? path.getFileName().toString() : document.getFileName());
+    }
+
+    public record StoredPlafondDocument(Path path, MediaType contentType, String fileName) {}
 
     // HELPER
     private CustomerPlafondRequest findPending(String requestId) {

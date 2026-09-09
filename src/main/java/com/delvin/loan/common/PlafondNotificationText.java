@@ -8,26 +8,27 @@ public final class PlafondNotificationText {
 
     public static String title(PlafondDecisionEvent event) {
         return event.approved()
-                ? "Kenaikan limit disetujui"
-                : "Kenaikan limit ditolak";
+                ? "Limit increase approved"
+                : "Limit increase rejected";
     }
 
     public static String pushBody(PlafondDecisionEvent event) {
 
         if (event.approved()) {
-            return "Limit Anda kini " + LoanNotificationText.rupiah(event.approvedAmount())
+            return "Your limit is now " + LoanNotificationText.rupiah(event.approvedAmount())
                     + (event.grantedLevel() == null ? "" : " (plafond level " + event.grantedLevel() + ")")
-                    + ". Anda dapat langsung mengajukan pinjaman.";
+                    + ". You can apply for a loan straight away.";
         }
 
-        return "Permintaan kenaikan limit " + LoanNotificationText.rupiah(event.requestedAmount())
-                + " tidak disetujui. Ketuk untuk melihat alasannya.";
+        return "Your limit increase request for "
+                + LoanNotificationText.rupiah(event.requestedAmount())
+                + " was not approved. Tap to see why.";
     }
 
     public static String emailSubject(PlafondDecisionEvent event) {
         return event.approved()
-                ? "Kenaikan limit " + event.requestId() + " disetujui"
-                : "Kenaikan limit " + event.requestId() + " ditolak";
+                ? "Limit increase " + event.requestId() + " approved"
+                : "Limit increase " + event.requestId() + " rejected";
     }
 
     public static String emailBody(PlafondDecisionEvent event) {
@@ -36,18 +37,18 @@ public final class PlafondNotificationText {
 
     private static String approvedBody(PlafondDecisionEvent event) {
         return """
-                Halo %s,
+                Hello %s,
 
-                Permintaan kenaikan limit Anda (%s) telah disetujui.
+                Your limit increase request (%s) has been approved.
 
-                Diminta   : %s
-                Disetujui : %s
+                Requested : %s
+                Approved  : %s
                 Plafond   : level %s
 
-                Limit baru ini langsung berlaku - Anda dapat mengajukan pinjaman
-                sampai jumlah tersebut melalui aplikasi QuickDuit.
+                The new limit takes effect immediately - you can apply for a loan
+                up to that amount through the QuickDuit app.
 
-                Pesan ini dikirim otomatis. Mohon tidak membalas email ini.
+                This message was sent automatically. Please do not reply to it.
                 """.formatted(
                 nullSafe(event.customerName()),
                 event.requestId(),
@@ -59,24 +60,24 @@ public final class PlafondNotificationText {
 
     private static String rejectedBody(PlafondDecisionEvent event) {
         return """
-                Halo %s,
+                Hello %s,
 
-                Mohon maaf, permintaan kenaikan limit Anda (%s) tidak dapat kami
-                setujui saat ini.
+                We are sorry - your limit increase request (%s) cannot be approved
+                at this time.
 
-                Diminta : %s
-                Alasan  : %s
+                Requested : %s
+                Reason    : %s
 
-                Limit Anda saat ini tidak berubah. Anda dapat mengajukan kembali
-                setelah melengkapi persyaratan yang diminta.
+                Your current limit is unchanged. You are welcome to ask again once
+                the requirements are met.
 
-                Pesan ini dikirim otomatis. Mohon tidak membalas email ini.
+                This message was sent automatically. Please do not reply to it.
                 """.formatted(
                 nullSafe(event.customerName()),
                 event.requestId(),
                 LoanNotificationText.rupiah(event.requestedAmount()),
                 event.notes() == null || event.notes().isBlank()
-                        ? "Tidak dicantumkan"
+                        ? "Not stated"
                         : event.notes()
         );
     }

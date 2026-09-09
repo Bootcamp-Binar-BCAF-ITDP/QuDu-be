@@ -1,5 +1,6 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.DocumentType;
 import com.delvin.loan.common.LoanStatus;
 import com.delvin.loan.common.LoanNotificationText;
 import com.delvin.loan.common.PlafondRequestStatus;
@@ -52,7 +53,11 @@ public class CustomerService {
         Customer customer = customerRepository.findById(request.getCustomerId())
                 .orElseThrow(() -> BusinessException.notFound("Customer not found: " + request.getCustomerId()));
 
-        customerDocumentService.requireComplete(customer.getCustomerId());
+        // Every required paper, not just the identity ones. Checked before the
+        // row exists so an application can never reach marketing with nothing
+        // attached - the payslip used to be uploaded after creation, which is
+        // exactly how empty applications got in.
+        customerDocumentService.requireCompleteForSubmission(customer.getCustomerId());
 
         validateAgainstPlafond(customer, request.getRequestedAmount(), request.getTenor());
 
@@ -97,6 +102,10 @@ public class CustomerService {
     private CustomerProfileResponse toProfileResponse(Customer customer) {
 
         List<String> missing = customerDocumentService.missingRequiredTypes(customer.getCustomerId());
+        List<String> missingForSubmission =
+                customerDocumentService.missingForSubmission(customer.getCustomerId());
+        List<String> staleForSubmission =
+                customerDocumentService.staleForSubmission(customer.getCustomerId());
 
         return CustomerProfileResponse.builder()
                 .customerId(customer.getCustomerId())
@@ -117,6 +126,10 @@ public class CustomerService {
                 .documents(customerDocumentService.list(customer.getCustomerId()))
                 .profileComplete(missing.isEmpty())
                 .missingDocuments(missing)
+                .missingForSubmission(missingForSubmission)
+                .staleForSubmission(staleForSubmission)
+                .submissionFreshnessDays(DocumentType.SUBMISSION_FRESHNESS_DAYS)
+                .readyToSubmit(missingForSubmission.isEmpty() && staleForSubmission.isEmpty())
                 .build();
     }
 
@@ -141,6 +154,10 @@ public class CustomerService {
 
         Customer customer = findCustomer(customerId);
 
+        // Same bar as a loan application: a branch manager deciding a limit
+        // increase needs the same evidence, and neither may be filed empty.
+        customerDocumentService.requireCompleteForSubmission(customerId);
+
         if (plafondRequestRepository.existsByCustomer_CustomerIdAndStatus(customerId, PlafondRequestStatus.PENDING)) {
             throw BusinessException.conflict("You already have a plafond request waiting for a decision");
         }
@@ -158,13 +175,13 @@ public class CustomerService {
             BigDecimal used = creditLimitService.usedLimit(customerId);
 
             throw BusinessException.badRequest(
-                    "Limit yang diminta " + LoanNotificationText.rupiah(body.getRequestedAmount())
-                            + " tidak lebih tinggi dari limit Anda saat ini ("
+                    "The requested limit of " + LoanNotificationText.rupiah(body.getRequestedAmount())
+                            + " is not higher than your current limit ("
                             + LoanNotificationText.rupiah(granted)
                             + (used.signum() > 0
-                                    ? ", terpakai " + LoanNotificationText.rupiah(used)
+                                    ? ", " + LoanNotificationText.rupiah(used) + " in use"
                                     : "")
-                            + "). Ajukan total limit baru yang lebih besar.");
+                            + "). Request a higher total limit instead.");
         }
 
         CustomerPlafondRequest request = new CustomerPlafondRequest();
@@ -176,7 +193,15 @@ public class CustomerService {
         request.setStatus(PlafondRequestStatus.PENDING);
         request.setRequestDate(LocalDateTime.now());
 
-        return PlafondRequestResponse.from(plafondRequestRepository.save(request));
+        CustomerPlafondRequest saved = plafondRequestRepository.save(request);
+
+        // A limit increase is a credit decision like any other, so the branch
+        // manager gets the same paperwork a loan application would carry -
+        // snapshotted here so replacing a payslip later cannot rewrite the
+        // evidence behind a decision already taken.
+        saved.setDocuments(customerDocumentService.copyDocumentsTo(saved));
+
+        return PlafondRequestResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -240,14 +265,14 @@ public class CustomerService {
 
         if (requestedAmount.compareTo(available) > 0) {
             String reason = used.signum() > 0
-                    ? " melebihi sisa limit Anda sebesar " + LoanNotificationText.rupiah(available)
+                    ? " exceeds your remaining limit of " + LoanNotificationText.rupiah(available)
                             + " (limit " + LoanNotificationText.rupiah(granted)
-                            + ", terpakai " + LoanNotificationText.rupiah(used) + ")"
-                    : " melebihi limit Anda sebesar " + LoanNotificationText.rupiah(available);
+                            + ", " + LoanNotificationText.rupiah(used) + " in use)"
+                    : " exceeds your limit of " + LoanNotificationText.rupiah(available);
 
             throw BusinessException.unprocessable(
-                    "Jumlah pengajuan " + LoanNotificationText.rupiah(requestedAmount) + reason
-                            + ". Ajukan kenaikan limit plafond terlebih dahulu.");
+                    "The requested amount of " + LoanNotificationText.rupiah(requestedAmount) + reason
+                            + ". Request a plafond limit increase first.");
         }
 
         if (tenor < plafond.getMinTenor() || tenor > plafond.getMaxTenor()) {

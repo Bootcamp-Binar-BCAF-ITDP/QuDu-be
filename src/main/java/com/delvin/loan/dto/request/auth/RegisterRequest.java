@@ -13,7 +13,7 @@ import java.time.LocalDate;
 @Setter
 public class RegisterRequest {
 
-    @NotNull(message = "Account type wajib diisi")
+    @NotNull(message = "Account type is required")
     private AccountType accountType;
 
     // USER
@@ -36,6 +36,16 @@ public class RegisterRequest {
 
     @NotBlank
     private String phoneNumber;
+
+    /**
+     * The code emailed by POST /api/auth/register/otp.
+     *
+     * Required for CUSTOMER and ignored for USER: staff accounts are created by
+     * a superadmin who already controls the address, while a customer types
+     * their own and has to prove they can read it. Enforced in AuthService
+     * rather than here, because the requirement depends on accountType.
+     */
+    private String otp;
 
     // CUSTOMER ONLY
     private Integer plafondId;

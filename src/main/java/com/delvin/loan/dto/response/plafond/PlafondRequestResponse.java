@@ -10,6 +10,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -36,6 +37,9 @@ public class PlafondRequestResponse {
 
     private PlafondResponse requestedPlafond;
 
+    /** The paperwork the decision is meant to be made on. Never empty in practice. */
+    private List<PlafondRequestDocumentResponse> documents;
+
     public static PlafondRequestResponse from(CustomerPlafondRequest request) {
 
         if (request == null) {
@@ -56,6 +60,10 @@ public class PlafondRequestResponse {
                 .reviewedBy(request.getReviewedBy() != null ? request.getReviewedBy().getFullName() : null)
                 .notes(request.getNotes())
                 .requestedPlafond(PlafondResponse.from(request.getRequestedPlafond()))
+                .documents(request.getDocuments() == null ? List.of()
+                        : request.getDocuments().stream()
+                                .map(PlafondRequestDocumentResponse::from)
+                                .toList())
                 .build();
     }
 }

@@ -8,12 +8,12 @@ import lombok.Setter;
 @Setter
 public class CustomerProfileUpdateRequest {
 
-    @NotBlank(message = "Nomor telepon wajib diisi")
+    @NotBlank(message = "Phone number is required")
     private String phoneNumber;
 
-    @NotBlank(message = "Alamat wajib diisi")
+    @NotBlank(message = "Address is required")
     private String address;
 
-    @NotBlank(message = "Pekerjaan wajib diisi")
+    @NotBlank(message = "Occupation is required")
     private String occupation;
 }

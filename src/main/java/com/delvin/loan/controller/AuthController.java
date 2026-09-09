@@ -5,6 +5,7 @@ import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.auth.ForgotPasswordRequest;
 import com.delvin.loan.dto.request.auth.LoginRequest;
 import com.delvin.loan.dto.request.auth.RegisterRequest;
+import com.delvin.loan.dto.request.auth.RegistrationOtpRequest;
 import com.delvin.loan.dto.request.auth.ResetPasswordRequest;
 import com.delvin.loan.dto.response.auth.AuthResponse;
 import com.delvin.loan.exception.BusinessException;
@@ -24,6 +25,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+
+    /**
+     * Step 1 of customer signup: prove the address is reachable and unused.
+     *
+     * Answers 409 "Email sudah terdaftar" when it is taken, which is what lets
+     * the app send the visitor to the login screen instead of the code step.
+     * Staff registration does not come through here - it is created by a
+     * superadmin and carries no OTP.
+     */
+    @PostMapping("/register/otp")
+    public ResponseEntity<ApiResponse<Void>> requestRegistrationOtp(
+            @Valid @RequestBody RegistrationOtpRequest request) {
+        authService.requestRegistrationOtp(request.getEmail());
+        return ResponseUtil.success("A verification code has been sent to your email", null);
+    }
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<Void>> register(

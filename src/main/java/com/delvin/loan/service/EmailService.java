@@ -50,6 +50,42 @@ public class EmailService {
         mailSender.send(message);
     }
 
+    /** The code a new customer types back to prove the address is theirs. */
+    public void sendRegistrationOtpEmail(
+            String email,
+            String code,
+            int validMinutes
+    ) {
+
+        SimpleMailMessage message =
+                new SimpleMailMessage();
+
+        message.setFrom(fromEmail);
+        message.setTo(email);
+        message.setSubject("Registration Verification Code - Quick Duit");
+
+        message.setText("""
+                Hello,
+
+                Thank you for signing up with QuickDuit.
+
+                Your verification code:
+
+                    %s
+
+                Enter this code in the app to finish creating your account.
+                It is valid for %d minutes and can be used once.
+
+                If you did not sign up, ignore this email - no account is
+                created without this code.
+
+                Never share this code with anyone, including people claiming
+                to be QuickDuit staff.
+                """.formatted(code, validMinutes));
+
+        mailSender.send(message);
+    }
+
     public void sendResetPasswordCodeEmail(
             String email,
             String code,
@@ -61,25 +97,25 @@ public class EmailService {
 
         message.setFrom(fromEmail);
         message.setTo(email);
-        message.setSubject("Kode Reset Password - Quick Duit");
+        message.setSubject("Password Reset Code - Quick Duit");
 
         message.setText("""
-                Halo,
+                Hello,
 
-                Kami menerima permintaan untuk mengatur ulang kata sandi Anda.
+                We received a request to reset your password.
 
-                Kode verifikasi Anda:
+                Your verification code:
 
                     %s
 
-                Masukkan kode ini di aplikasi QuickDuit. Kode berlaku %d menit
-                dan hanya bisa dipakai satu kali.
+                Enter this code in the QuickDuit app. It is valid for %d
+                minutes and can be used once.
 
-                Jika Anda tidak meminta pengaturan ulang kata sandi, abaikan
-                email ini - kata sandi Anda tidak berubah.
+                If you did not ask for a password reset, ignore this email -
+                your password has not changed.
 
-                Jangan bagikan kode ini kepada siapa pun, termasuk yang mengaku
-                sebagai petugas QuickDuit.
+                Never share this code with anyone, including people claiming
+                to be QuickDuit staff.
                 """.formatted(code, validMinutes));
 
         mailSender.send(message);

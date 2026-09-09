@@ -15,7 +15,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+
+import java.nio.charset.StandardCharsets;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -66,6 +73,29 @@ public class BranchManagerController {
                 "Plafond request bucket retrieved",
                 branchManagerService.listPlafondRequestBucket(pageable)
         );
+    }
+
+    /**
+     * Streams one document attached to a limit-increase request, inline, so the
+     * branch manager reads it in a modal instead of downloading it. The
+     * loan-application equivalent lives on LoanDocumentController.
+     */
+    @GetMapping("/plafond-requests/{requestId}/documents/{documentId}/content")
+    public ResponseEntity<Resource> plafondRequestDocument(@PathVariable String requestId,
+                                                           @PathVariable Integer documentId) {
+
+        BranchManagerService.StoredPlafondDocument stored =
+                branchManagerService.loadDocumentContent(requestId, documentId);
+
+        return ResponseEntity.ok()
+                .contentType(stored.contentType())
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline()
+                                .filename(stored.fileName(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString())
+                .cacheControl(CacheControl.noStore())
+                .body(new FileSystemResource(stored.path()));
     }
 
     @PutMapping("/plafond-requests/{requestId}/decision")

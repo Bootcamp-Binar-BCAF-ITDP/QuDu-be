@@ -12,23 +12,23 @@ public final class LoanNotificationText {
 
     public static String title(LoanStatusChangedEvent event) {
         return event.approved()
-                ? "Pengajuan pinjaman disetujui"
-                : "Pengajuan pinjaman ditolak";
+                ? "Loan application approved"
+                : "Loan application rejected";
     }
 
     public static String pushBody(LoanStatusChangedEvent event) {
         if (event.approved()) {
-            return "Dana " + rupiah(event.amount()) + " untuk pengajuan "
-                    + event.applicationId() + " telah dicairkan.";
+            return "Funds of " + rupiah(event.amount()) + " for application "
+                    + event.applicationId() + " have been disbursed.";
         }
-        return "Pengajuan " + event.applicationId() + " ditolak pada tahap "
-                + stageLabel(event.status()) + ". Ketuk untuk melihat detail.";
+        return "Application " + event.applicationId() + " was rejected at the "
+                + stageLabel(event.status()) + " stage. Tap to see the details.";
     }
 
     public static String emailSubject(LoanStatusChangedEvent event) {
         return event.approved()
-                ? "Pinjaman " + event.applicationId() + " telah dicairkan"
-                : "Pengajuan pinjaman " + event.applicationId() + " ditolak";
+                ? "Loan " + event.applicationId() + " has been disbursed"
+                : "Loan application " + event.applicationId() + " was rejected";
     }
 
     public static String emailBody(LoanStatusChangedEvent event) {
@@ -37,18 +37,18 @@ public final class LoanNotificationText {
 
     private static String approvedBody(LoanStatusChangedEvent event) {
         return """
-                Halo %s,
+                Hello %s,
 
-                Pengajuan pinjaman %s Anda telah disetujui dan dicairkan.
+                Your loan application %s has been approved and disbursed.
 
-                Jumlah   : %s
-                Bank     : %s
-                Rekening : %s
+                Amount  : %s
+                Bank    : %s
+                Account : %s
 
-                Dana akan masuk ke rekening Anda dalam satu hari kerja.
-                Jika Anda tidak merasa mengajukan, segera hubungi cabang Anda.
+                The funds will reach your account within one business day.
+                If you did not make this application, contact your branch at once.
 
-                Pesan ini dikirim otomatis. Mohon tidak membalas email ini.
+                This message was sent automatically. Please do not reply to it.
                 """.formatted(
                 event.customerName(),
                 event.applicationId(),
@@ -60,38 +60,42 @@ public final class LoanNotificationText {
 
     private static String rejectedBody(LoanStatusChangedEvent event) {
         return """
-                Halo %s,
+                Hello %s,
 
-                Mohon maaf, pengajuan pinjaman %s Anda tidak dapat kami lanjutkan.
+                We are sorry - your loan application %s cannot be taken further.
 
-                Tahap    : %s
-                Jumlah   : %s
-                Alasan   : %s
+                Stage  : %s
+                Amount : %s
+                Reason : %s
 
-                Anda dapat mengajukan kembali setelah melengkapi persyaratan.
+                You are welcome to apply again once the requirements are met.
 
-                Pesan ini dikirim otomatis. Mohon tidak membalas email ini.
+                This message was sent automatically. Please do not reply to it.
                 """.formatted(
                 event.customerName(),
                 event.applicationId(),
                 stageLabel(event.status()),
                 rupiah(event.amount()),
                 event.decisionNote() == null || event.decisionNote().isBlank()
-                        ? "Tidak dicantumkan"
+                        ? "Not stated"
                         : event.decisionNote()
         );
     }
 
     public static String stageLabel(String status) {
         return switch (status == null ? "" : status) {
-            case LoanStatus.REJECTED_BY_MARKETING -> "review marketing";
-            case LoanStatus.REJECTED_BY_BRANCH_MANAGER -> "persetujuan branch manager";
-            case LoanStatus.REJECTED_BY_BACK_OFFICE -> "verifikasi back office";
-            case LoanStatus.DISBURSED -> "pencairan";
+            case LoanStatus.REJECTED_BY_MARKETING -> "marketing review";
+            case LoanStatus.REJECTED_BY_BRANCH_MANAGER -> "branch manager approval";
+            case LoanStatus.REJECTED_BY_BACK_OFFICE -> "back office verification";
+            case LoanStatus.DISBURSED -> "disbursement";
             default -> status;
         };
     }
 
+    /**
+     * Amounts stay in rupiah regardless of the interface language - the money
+     * itself is IDR, so an en-US format here would print the wrong currency.
+     */
     public static String rupiah(BigDecimal amount) {
         if (amount == null) return "-";
         NumberFormat format = NumberFormat.getCurrencyInstance(Locale.of("id", "ID"));

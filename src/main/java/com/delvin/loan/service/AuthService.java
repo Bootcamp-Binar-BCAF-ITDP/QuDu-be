@@ -1,6 +1,7 @@
 package com.delvin.loan.service;
 
 import com.delvin.loan.common.AccountType;
+import com.delvin.loan.common.OtpCodes;
 import com.delvin.loan.dto.response.auth.RegisterResponse;
 import com.delvin.loan.dto.response.menu.MenuResponse;
 import com.delvin.loan.exception.BusinessException;
@@ -8,6 +9,7 @@ import com.delvin.loan.model.*;
 import com.delvin.loan.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import com.delvin.loan.dto.request.auth.LoginRequest;
@@ -32,7 +34,7 @@ import java.util.UUID;
 @Slf4j
 public class AuthService {
 
-    private static final String INVALID_CREDENTIALS = "Username atau password salah";
+    private static final String INVALID_CREDENTIALS = "Wrong username or password";
 
     private static final int RESET_TOKEN_TTL_MINUTES = 15;
 
@@ -44,6 +46,7 @@ public class AuthService {
     private final RoleRepository roleRepository;
     private final BranchRepository branchRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final RegistrationOtpRepository registrationOtpRepository;
     private final EmailService emailService;
     private final CustomerRepository customerRepository;
     private final PlafondService plafondService;
@@ -64,29 +67,29 @@ public class AuthService {
         }
 
         throw new IllegalArgumentException(
-                "Account type tidak valid"
+                "Invalid account type"
         );
     }
 
     private RegisterResponse registerUser(RegisterRequest request) {
 
         if (request.getUsername() == null || request.getUsername().isBlank()) {
-            throw BusinessException.badRequest("Username wajib diisi");
+            throw BusinessException.badRequest("Username is required");
         }
 
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw BusinessException.conflict("Username sudah digunakan");
+            throw BusinessException.conflict("That username is already taken");
         }
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw BusinessException.conflict("Email sudah digunakan");
+            throw BusinessException.conflict("That email is already in use");
         }
 
         Role role = roleRepository
                 .findById(request.getRoleId())
                 .orElseThrow(() ->
                         new IllegalArgumentException(
-                                "Role tidak ditemukan"
+                                "Role not found"
                         )
                 );
 
@@ -96,7 +99,7 @@ public class AuthService {
                         true
                 )
                 .orElseThrow(() ->
-                        BusinessException.badRequest("Role tidak ditemukan")
+                        BusinessException.badRequest("Role not found")
                 );
 
         User user = new User();
@@ -140,14 +143,110 @@ public class AuthService {
                 .build();
     }
 
-    private RegisterResponse registerCustomer(RegisterRequest request) {
+    /**
+     * Issues the code that has to accompany a customer registration.
+     *
+     * Unlike forgot-password, this one <em>does</em> say whether the address is
+     * already taken. That is deliberate and requested: a signup form has to tell
+     * you the email is in use or you cannot proceed, and every registration form
+     * on the web leaks exactly this much. The trade is enumeration of registered
+     * addresses, which is why the same honesty is not extended to the reset flow.
+     */
+    @Transactional
+    public void requestRegistrationOtp(String rawEmail) {
 
-        if (customerRepository.existsByEmail(request.getEmail())) {
-            throw BusinessException.conflict("Email sudah digunakan");
+        // Trimmed but deliberately not lower-cased: email lookups everywhere in
+        // this system are case-sensitive, so folding case here would let an
+        // address pass this check and then fail login, or vice versa. The app
+        // sends the same string to both endpoints, which is all this flow needs.
+        String email = rawEmail.trim();
+
+        // Mirrors exactly what registerCustomer checks. Checking more here would
+        // turn away addresses that registration would then have accepted.
+        if (customerRepository.existsByEmail(email)) {
+            throw BusinessException.conflict("That email is already registered");
         }
 
+        registrationOtpRepository.deleteByEmail(email);
+        registrationOtpRepository.flush();
+
+        RegistrationOtp otp = new RegistrationOtp();
+
+        otp.setEmail(email);
+        otp.setCode(OtpCodes.generate());
+        otp.setExpiryDate(LocalDateTime.now().plusMinutes(OtpCodes.TTL_MINUTES));
+        otp.setUsed(false);
+        otp.setAttempts(0);
+        otp.setCreatedAt(LocalDateTime.now());
+
+        registrationOtpRepository.save(otp);
+
+        try {
+            emailService.sendRegistrationOtpEmail(email, otp.getCode(), OtpCodes.TTL_MINUTES);
+        } catch (Exception e) {
+            // Throwing rolls the saved row back, which is what we want: a code
+            // nobody received must not sit there looking valid. Unlike
+            // forgot-password there is nothing to hide by failing loudly - the
+            // caller already knows whether the address is taken.
+            log.error("Could not send registration OTP to {}", email, e);
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "The code could not be sent. Please try again shortly.");
+        }
+    }
+
+    /**
+     * Consumes the registration code, or refuses the registration.
+     *
+     * Looked up by email rather than by code so a wrong guess has a row to be
+     * counted against - the same reasoning as resolveResetToken.
+     */
+    private void consumeRegistrationOtp(String email, String submitted) {
+
+        if (submitted == null || submitted.isBlank()) {
+            throw BusinessException.badRequest(
+                    "A verification code is required. Request one via /api/auth/register/otp.");
+        }
+
+        RegistrationOtp otp = registrationOtpRepository.findByEmail(email)
+                .orElseThrow(() -> BusinessException.badRequest(
+                        "No verification code has been issued for this email. Request one first."));
+
+        if (otp.isUsed()) {
+            throw BusinessException.badRequest("That verification code has already been used. Request a new one.");
+        }
+
+        if (otp.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw BusinessException.badRequest("That verification code has expired. Request a new one.");
+        }
+
+        if (otp.getAttempts() >= OtpCodes.MAX_ATTEMPTS) {
+            throw BusinessException.badRequest(
+                    "That verification code was disabled after too many attempts. Request a new one.");
+        }
+
+        if (!otp.getCode().equals(submitted.trim())) {
+            registrationOtpRepository.incrementAttempts(otp.getId());
+            throw BusinessException.badRequest("That verification code is not valid.");
+        }
+
+        otp.setUsed(true);
+        registrationOtpRepository.save(otp);
+    }
+
+    private RegisterResponse registerCustomer(RegisterRequest request) {
+
+        String email = request.getEmail().trim();
+
+        if (customerRepository.existsByEmail(email)) {
+            throw BusinessException.conflict("That email is already registered");
+        }
+
+        // Before the NIK check on purpose: a wrong code should not be told
+        // whether the NIK it came with is already on file.
+        consumeRegistrationOtp(email, request.getOtp());
+
         if (customerRepository.existsByNik(request.getNik())) {
-            throw BusinessException.conflict("NIK sudah digunakan");
+            throw BusinessException.conflict("That NIK is already in use");
         }
 
         Customer customer = new Customer();
@@ -235,7 +334,7 @@ public class AuthService {
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             throw new IllegalArgumentException(
-                    "User tidak aktif"
+                    "User is not active"
             );
         }
 
@@ -244,7 +343,7 @@ public class AuthService {
                 user.getPassword()
         )) {
             throw new IllegalArgumentException(
-                    "Password salah"
+                    "Wrong password"
             );
         }
 
@@ -279,7 +378,7 @@ public class AuthService {
                 .findByEmail(request.getUsernameOrEmail())
                 .orElseThrow(() ->
                         new IllegalArgumentException(
-                                "Email customer tidak ditemukan"
+                                "Customer email not found"
                         )
                 );
 
@@ -288,7 +387,7 @@ public class AuthService {
                 customer.getPassword()
         )) {
             throw new IllegalArgumentException(
-                    "Password salah"
+                    "Wrong password"
             );
         }
 
@@ -338,7 +437,7 @@ public class AuthService {
                 }
             }
 
-            log.info("Forgot password diminta untuk email yang tidak terdaftar");
+            log.info("Forgot password requested for an unregistered email");
 
         } catch (Exception e) {
             log.warn("Gagal memproses forgot password", e);
@@ -401,24 +500,24 @@ public class AuthService {
         if (email == null || email.isBlank()) {
             return passwordResetTokenRepository
                     .findByToken(request.getToken())
-                    .orElseThrow(() -> new IllegalArgumentException("Token reset password tidak valid"));
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid password reset token"));
         }
 
        Customer customer = customerRepository.findByEmail(email.trim())
-                .orElseThrow(() -> new IllegalArgumentException("Kode reset password tidak valid"));
+                .orElseThrow(() -> new IllegalArgumentException("Invalid password reset code"));
 
         PasswordResetToken resetToken = passwordResetTokenRepository.findByCustomer(customer)
-                .orElseThrow(() -> new IllegalArgumentException("Kode reset password tidak valid"));
+                .orElseThrow(() -> new IllegalArgumentException("Invalid password reset code"));
 
         if (resetToken.getAttempts() >= MAX_RESET_ATTEMPTS) {
             throw new IllegalArgumentException(
-                    "Kode reset password dinonaktifkan karena terlalu banyak percobaan. "
-                            + "Silakan minta kode baru.");
+                    "That reset code was disabled after too many attempts. "
+                            + "Please request a new one.");
         }
 
         if (!resetToken.getToken().equals(request.getToken())) {
             passwordResetTokenRepository.incrementAttempts(resetToken.getId());
-            throw new IllegalArgumentException("Kode reset password tidak valid");
+            throw new IllegalArgumentException("Invalid password reset code");
         }
 
         return resetToken;
@@ -430,7 +529,7 @@ public class AuthService {
     ) {
 
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
-            throw new IllegalArgumentException("Password dan konfirmasi password tidak sama");
+            throw new IllegalArgumentException("The password and its confirmation do not match");
         }
 
         PasswordResetToken resetToken = resolveResetToken(request);
@@ -438,7 +537,7 @@ public class AuthService {
         if (Boolean.TRUE.equals(resetToken.getUsed())) {
 
             throw new IllegalArgumentException(
-                    "Token reset password sudah digunakan"
+                    "That password reset token has already been used"
             );
         }
 
@@ -446,7 +545,7 @@ public class AuthService {
                 .isBefore(LocalDateTime.now())) {
 
             throw new IllegalArgumentException(
-                    "Token reset password sudah kadaluarsa"
+                    "That password reset token has expired"
             );
         }
 
@@ -459,7 +558,7 @@ public class AuthService {
 
             if (customer == null) {
                 throw new IllegalArgumentException(
-                        "Token reset password tidak valid"
+                        "Invalid password reset token"
                 );
             }
 
@@ -473,7 +572,7 @@ public class AuthService {
 
             if (user == null) {
                 throw new IllegalArgumentException(
-                        "Token reset password tidak valid"
+                        "Invalid password reset token"
                 );
             }
 
@@ -491,7 +590,7 @@ public class AuthService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("User tidak ditemukan")
+                        new IllegalArgumentException("User not found")
                 );
 
         if (user.getRole() == null) {

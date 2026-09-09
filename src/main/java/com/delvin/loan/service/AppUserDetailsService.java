@@ -36,7 +36,7 @@ public class AppUserDetailsService implements UserDetailsService {
         if (user != null) {
             if (Boolean.FALSE.equals(user.getIsActive())) {
                 throw new UsernameNotFoundException(
-                        "User tidak aktif"
+                        "User is not active"
                 );
             }
 
@@ -62,7 +62,7 @@ public class AppUserDetailsService implements UserDetailsService {
                 .findByEmail(usernameOrEmail)
                 .orElseThrow(() ->
                         new UsernameNotFoundException(
-                                "User atau customer tidak ditemukan"
+                                "User or customer not found"
                         )
                 );
 

@@ -41,4 +41,26 @@ public class CustomerProfileResponse {
     private boolean profileComplete;
 
     private List<String> missingDocuments;
+
+    /**
+     * Everything still missing before a loan application or a limit increase may
+     * be filed - identity papers and financial evidence alike.
+     *
+     * The app renders this rather than deciding for itself what a submission
+     * needs, so the rule lives in one place: DocumentType.REQUIRED_FOR_SUBMISSION.
+     */
+    private List<String> missingForSubmission;
+
+    /**
+     * On file but past DocumentType.SUBMISSION_FRESHNESS_DAYS, so it has to be
+     * uploaded again before the next submission. Only financial evidence ever
+     * appears here.
+     */
+    private List<String> staleForSubmission;
+
+    /** How old financial evidence may be, so the app can say so without hardcoding it. */
+    private int submissionFreshnessDays;
+
+    /** True when nothing is missing or stale, i.e. a submission would be accepted. */
+    private boolean readyToSubmit;
 }

@@ -46,6 +46,20 @@ public class PlafondController {
         return ResponseUtil.success("Plafonds retrieved successfully", plafonds);
     }
 
+    /**
+     * Public rate card, read by the customer app's loan simulator.
+     *
+     * Sits above the /{plafondId} mapping only for readability - Spring matches
+     * the literal path first either way. Permitted without a login through
+     * SecurityRoutes.PUBLIC, which is evaluated before the SUPERADMIN rule that
+     * covers the rest of /api/plafonds/**.
+     */
+    @GetMapping("/catalog")
+    public ResponseEntity<ApiResponse<List<PlafondResponse>>> catalog() {
+        return ResponseUtil.success("Plafond catalog retrieved successfully",
+                plafondService.catalog());
+    }
+
     @GetMapping("/{plafondId}")
     public ResponseEntity<ApiResponse<PlafondResponse>> getById(@PathVariable Integer plafondId) {
         return ResponseUtil.success("Plafond retrieved successfully", plafondService.getById(plafondId));
