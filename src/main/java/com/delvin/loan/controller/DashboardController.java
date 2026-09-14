@@ -6,7 +6,10 @@ import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.response.dashboard.DashboardResponse;
 import com.delvin.loan.service.DashboardService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+
+import java.time.LocalDate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,10 +22,20 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
 
+    /**
+     * `period` is a preset window. Supplying `from` and `to` together overrides
+     * it with a custom one; the preset is then ignored rather than combined.
+     */
     @GetMapping
     public ResponseEntity<ApiResponse<DashboardResponse>> dashboard(
-            @RequestParam(defaultValue = "THIS_MONTH") DashboardPeriod period
+            @RequestParam(defaultValue = "THIS_MONTH") DashboardPeriod period,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
-        return ResponseUtil.success("Dashboard retrieved", dashboardService.getDashboard(period));
+        return ResponseUtil.success(
+                "Dashboard retrieved",
+                dashboardService.getDashboard(period, from, to));
     }
 }

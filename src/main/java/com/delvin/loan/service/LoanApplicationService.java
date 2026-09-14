@@ -34,28 +34,35 @@ public class LoanApplicationService {
     private final LoanApplicationRepository applicationRepository;
     private final UserRepository userRepository;
     private final LoanMapper mapper;
+    private final CreditScoreService creditScoreService;
 
+    /**
+     * Every filter goes through one query. The old four-branch version would
+     * have needed eight branches once dates arrived, and each branch is a place
+     * for the filters to drift apart.
+     *
+     * @param from inclusive, null for no lower bound
+     * @param to   inclusive, null for no upper bound
+     */
     @Transactional(readOnly = true)
     public PageResponse<LoanApplicationResponse> getAllApplication(
-            List<String> statuses, String search, Pageable pageable) {
+            List<String> statuses, String search, LocalDate from, LocalDate to, Pageable pageable) {
 
         List<String> filters = normalizeStatuses(statuses);
-        String term = normalizeSearch(search);
-
-        Page<LoanApplication> applications;
-
-        if (filters.isEmpty() && term == null) {
-            applications = applicationRepository.findAll(pageable);
-
-        } else if (term == null) {
-            applications = applicationRepository.findByStatusIn(filters, pageable);
-
-        } else if (filters.isEmpty()) {
-            applications = applicationRepository.search(term, pageable);
-
-        } else {
-            applications = applicationRepository.searchByStatusIn(filters, term, pageable);
+        if (filters.isEmpty()) {
+            filters = List.copyOf(VALID_STATUSES);
         }
+
+        if (from != null && to != null && from.isAfter(to)) {
+            throw BusinessException.badRequest("from cannot be after to");
+        }
+
+        Page<LoanApplication> applications = applicationRepository.filter(
+                filters,
+                normalizeSearch(search),
+                from == null ? EARLIEST : from,
+                to == null ? LATEST : to,
+                pageable);
 
         return PageResponse.of(applications, mapper::toApplicationResponse);
     }
@@ -109,6 +116,16 @@ public class LoanApplicationService {
         return mapper.toApplicationResponse(getApplicationOrThrow(applicationId));
     }
 
+    /**
+     * The same figure the list already carries, for callers that hold only an
+     * id. 404s on an unknown application rather than returning an empty score,
+     * so "no such application" cannot be mistaken for "no ratio available".
+     */
+    @Transactional(readOnly = true)
+    public CreditScoreResponse creditScore(String applicationId) {
+        return creditScoreService.evaluate(getApplicationOrThrow(applicationId));
+    }
+
     public PageResponse<LoanApplicationResponse> listByCustomer(String customerId, Pageable pageable) {
         return PageResponse.of(
                 applicationRepository.findByCustomer_CustomerId(customerId, pageable),
@@ -146,16 +163,27 @@ public class LoanApplicationService {
     }
 
     // ---- internal helpers ----
+    /**
+     * Stand-ins for "no bound given", chosen to sit far outside any submission
+     * date the system will ever hold. They exist so the query needs no nullable
+     * date parameter - see the note on LoanApplicationRepository.filter.
+     */
+    static final LocalDate EARLIEST = LocalDate.of(1900, 1, 1);
+    static final LocalDate LATEST = LocalDate.of(9999, 12, 31);
+
+    /** Matches every row under LIKE, which is how "no search" is expressed. */
+    static final String MATCH_ALL = "%";
+
     private String normalizeSearch(String search) {
 
         if (search == null) {
-            return null;
+            return MATCH_ALL;
         }
 
         String trimmed = search.trim();
 
         if (trimmed.isEmpty()) {
-            return null;
+            return MATCH_ALL;
         }
 
         String escaped = trimmed

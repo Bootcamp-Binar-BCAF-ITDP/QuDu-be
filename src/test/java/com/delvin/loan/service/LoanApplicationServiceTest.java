@@ -26,7 +26,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 
+import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,6 +56,9 @@ class LoanApplicationServiceTest {
     @Mock
     private LoanMapper mapper;
 
+    @Mock
+    private CreditScoreService creditScoreService;
+
     @InjectMocks
     private LoanApplicationService service;
 
@@ -65,53 +70,73 @@ class LoanApplicationServiceTest {
         when(mapper.toApplicationResponse(any())).thenReturn(mock(LoanApplicationResponse.class));
     }
 
-    @Test
-    @DisplayName("no filter and no search term reads everything")
-    void noFilterNoSearchReadsEverything() {
-        when(applicationRepository.findAll(PAGE)).thenReturn(onePage());
+    private void stubFilter() {
+        when(applicationRepository.filter(any(), any(), any(), any(), eq(PAGE))).thenReturn(onePage());
         stubMapper();
-
-        service.getAllApplication(null, null, PAGE);
-
-        verify(applicationRepository).findAll(PAGE);
     }
 
-    @Test
-    @DisplayName("a status filter alone uses the status query")
-    void statusFilterAloneUsesStatusQuery() {
-        when(applicationRepository.findByStatusIn(List.of(LoanStatus.CHECKING), PAGE))
-                .thenReturn(onePage());
-        stubMapper();
+    private record FilterArgs(
+            Collection<String> statuses, String term, LocalDate from, LocalDate to) {}
 
-        service.getAllApplication(List.of("checking"), "  ", PAGE);
-
-        verify(applicationRepository).findByStatusIn(List.of(LoanStatus.CHECKING), PAGE);
-    }
-
-    @Test
-    @DisplayName("a search term alone uses the search query")
-    void searchTermAloneUsesSearchQuery() {
-        when(applicationRepository.search(any(), eq(PAGE))).thenReturn(onePage());
-        stubMapper();
-
-        service.getAllApplication(null, "budi", PAGE);
-
-        verify(applicationRepository).search("%budi%", PAGE);
-    }
-
-    @Test
-    @DisplayName("a filter and a search term together use the combined query")
-    void filterAndSearchUseCombinedQuery() {
-        when(applicationRepository.searchByStatusIn(any(), any(), eq(PAGE))).thenReturn(onePage());
-        stubMapper();
-
-        service.getAllApplication(List.of(LoanStatus.DISBURSED), "budi", PAGE);
+    @SuppressWarnings("unchecked")
+    private FilterArgs captureFilter() {
+        ArgumentCaptor<Collection<String>> statuses = ArgumentCaptor.forClass(Collection.class);
+        ArgumentCaptor<String> term = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<LocalDate> from = ArgumentCaptor.forClass(LocalDate.class);
+        ArgumentCaptor<LocalDate> to = ArgumentCaptor.forClass(LocalDate.class);
 
         verify(applicationRepository)
-                .searchByStatusIn(List.of(LoanStatus.DISBURSED), "%budi%", PAGE);
+                .filter(statuses.capture(), term.capture(), from.capture(), to.capture(), eq(PAGE));
+
+        return new FilterArgs(
+                statuses.getValue(), term.getValue(), from.getValue(), to.getValue());
     }
 
-    @ParameterizedTest(name = "\"{0}\" is normalised to {1}")
+    @Test
+    @DisplayName("no filter and no search term asks for every status across all time")
+    void noFilterNoSearchReadsEverything() {
+        stubFilter();
+
+        service.getAllApplication(null, null, null, null, PAGE);
+
+        FilterArgs args = captureFilter();
+        assertThat(args.statuses()).containsExactlyInAnyOrder(
+                LoanStatus.CHECKING,
+                LoanStatus.REJECTED_BY_MARKETING,
+                LoanStatus.PENDING_BRANCH_MANAGER,
+                LoanStatus.REJECTED_BY_BRANCH_MANAGER,
+                LoanStatus.PENDING_BACK_OFFICE,
+                LoanStatus.VERIFIED,
+                LoanStatus.DISBURSED,
+                LoanStatus.REJECTED_BY_BACK_OFFICE);
+        assertThat(args.term()).isEqualTo("%");
+        assertThat(args.from()).isEqualTo(LoanApplicationService.EARLIEST);
+        assertThat(args.to()).isEqualTo(LoanApplicationService.LATEST);
+    }
+
+    @Test
+    @DisplayName("a status filter narrows the statuses and leaves the rest wide open")
+    void statusFilterNarrowsStatuses() {
+        stubFilter();
+
+        service.getAllApplication(List.of("checking"), "  ", null, null, PAGE);
+
+        FilterArgs args = captureFilter();
+        assertThat(args.statuses()).containsExactly(LoanStatus.CHECKING);
+        assertThat(args.term()).isEqualTo("%");
+    }
+
+    @Test
+    @DisplayName("a search term is wrapped for LIKE and lowercased")
+    void searchTermIsWrapped() {
+        stubFilter();
+
+        service.getAllApplication(null, "BuDi", null, null, PAGE);
+
+        assertThat(captureFilter().term()).isEqualTo("%budi%");
+    }
+
+    @ParameterizedTest(name = "status {0} is normalised to {1}")
     @CsvSource({
             "checking,CHECKING",
             "  disbursed  ,DISBURSED",
@@ -119,41 +144,39 @@ class LoanApplicationServiceTest {
     })
     @DisplayName("a status is trimmed and uppercased before it reaches the query")
     void statusIsNormalised(String raw, String expected) {
-        when(applicationRepository.findByStatusIn(List.of(expected), PAGE)).thenReturn(onePage());
-        stubMapper();
+        stubFilter();
 
-        service.getAllApplication(List.of(raw), null, PAGE);
+        service.getAllApplication(List.of(raw), null, null, null, PAGE);
 
-        verify(applicationRepository).findByStatusIn(List.of(expected), PAGE);
+        assertThat(captureFilter().statuses()).containsExactly(expected);
     }
 
     @Test
-    @DisplayName("blank and null statuses are dropped rather than queried for")
+    @DisplayName("blank and null statuses are dropped, which widens back to every status")
     void blankStatusesAreDropped() {
-        when(applicationRepository.findAll(PAGE)).thenReturn(onePage());
-        stubMapper();
+        stubFilter();
 
-        service.getAllApplication(Arrays.asList(null, "", "   "), null, PAGE);
+        service.getAllApplication(Arrays.asList(null, "", "   "), null, null, null, PAGE);
 
-        verify(applicationRepository).findAll(PAGE);
+        assertThat(captureFilter().statuses()).hasSize(8);
     }
 
     @Test
     @DisplayName("a repeated status is only asked for once")
     void duplicateStatusesAreCollapsed() {
-        when(applicationRepository.findByStatusIn(List.of(LoanStatus.CHECKING), PAGE))
-                .thenReturn(onePage());
-        stubMapper();
+        stubFilter();
 
-        service.getAllApplication(List.of("CHECKING", "checking", " Checking "), null, PAGE);
+        service.getAllApplication(
+                List.of("CHECKING", "checking", " Checking "), null, null, null, PAGE);
 
-        verify(applicationRepository).findByStatusIn(List.of(LoanStatus.CHECKING), PAGE);
+        assertThat(captureFilter().statuses()).containsExactly(LoanStatus.CHECKING);
     }
 
     @Test
     @DisplayName("an unknown status is refused and the allowed set is named")
     void unknownStatusIsRefused() {
-        assertThatThrownBy(() -> service.getAllApplication(List.of("PENDING"), null, PAGE))
+        assertThatThrownBy(
+                () -> service.getAllApplication(List.of("PENDING"), null, null, null, PAGE))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Invalid status: PENDING")
                 .extracting(e -> ((BusinessException) e).getStatus())
@@ -169,39 +192,100 @@ class LoanApplicationServiceTest {
     })
     @DisplayName("LIKE wildcards inside a search term are escaped, not honoured")
     void likeWildcardsAreEscaped(String raw, String expected) {
-        when(applicationRepository.search(any(), eq(PAGE))).thenReturn(onePage());
-        stubMapper();
+        stubFilter();
 
-        service.getAllApplication(null, raw, PAGE);
+        service.getAllApplication(null, raw, null, null, PAGE);
 
-        ArgumentCaptor<String> term = ArgumentCaptor.forClass(String.class);
-        verify(applicationRepository).search(term.capture(), eq(PAGE));
-        assertThat(term.getValue()).isEqualTo(expected);
+        assertThat(captureFilter().term()).isEqualTo(expected);
     }
 
     @Test
     @DisplayName("a backslash in a search term is escaped first, so the other escapes survive")
     void backslashIsEscapedFirst() {
-        when(applicationRepository.search(any(), eq(PAGE))).thenReturn(onePage());
-        stubMapper();
+        stubFilter();
 
-        service.getAllApplication(null, "a\\b", PAGE);
+        service.getAllApplication(null, "a\\b", null, null, PAGE);
 
-        verify(applicationRepository).search("%a\\\\b%", PAGE);
+        assertThat(captureFilter().term()).isEqualTo("%a\\\\b%");
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   "})
-    @DisplayName("a blank search term is treated as no search at all")
+    @DisplayName("a blank search term becomes the match-everything wildcard")
     void blankSearchIsNoSearch(String search) {
-        when(applicationRepository.findAll(PAGE)).thenReturn(onePage());
-        stubMapper();
+        stubFilter();
 
-        service.getAllApplication(null, search, PAGE);
+        service.getAllApplication(null, search, null, null, PAGE);
 
-        verify(applicationRepository).findAll(PAGE);
-        verify(applicationRepository, never()).search(any(), any());
+        assertThat(captureFilter().term()).isEqualTo("%");
+    }
+
+    @Test
+    @DisplayName("both dates are passed through as given")
+    void dateWindowIsPassedThrough() {
+        stubFilter();
+
+        LocalDate from = LocalDate.of(2026, 3, 1);
+        LocalDate to = LocalDate.of(2026, 3, 31);
+
+        service.getAllApplication(null, null, from, to, PAGE);
+
+        FilterArgs args = captureFilter();
+        assertThat(args.from()).isEqualTo(from);
+        assertThat(args.to()).isEqualTo(to);
+    }
+
+    @Test
+    @DisplayName("a lower bound alone leaves the upper bound open")
+    void openEndedUpperBound() {
+        stubFilter();
+
+        LocalDate from = LocalDate.of(2026, 3, 1);
+        service.getAllApplication(null, null, from, null, PAGE);
+
+        FilterArgs args = captureFilter();
+        assertThat(args.from()).isEqualTo(from);
+        assertThat(args.to()).isEqualTo(LoanApplicationService.LATEST);
+    }
+
+    @Test
+    @DisplayName("an upper bound alone leaves the lower bound open")
+    void openEndedLowerBound() {
+        stubFilter();
+
+        LocalDate to = LocalDate.of(2026, 3, 31);
+        service.getAllApplication(null, null, null, to, PAGE);
+
+        FilterArgs args = captureFilter();
+        assertThat(args.from()).isEqualTo(LoanApplicationService.EARLIEST);
+        assertThat(args.to()).isEqualTo(to);
+    }
+
+    @Test
+    @DisplayName("a single day window is allowed, since from and to are both inclusive")
+    void singleDayWindowIsAllowed() {
+        stubFilter();
+
+        LocalDate day = LocalDate.of(2026, 3, 15);
+        service.getAllApplication(null, null, day, day, PAGE);
+
+        FilterArgs args = captureFilter();
+        assertThat(args.from()).isEqualTo(day);
+        assertThat(args.to()).isEqualTo(day);
+    }
+
+    @Test
+    @DisplayName("a window that runs backwards is refused rather than quietly returning nothing")
+    void backwardsWindowIsRefused() {
+        assertThatThrownBy(() -> service.getAllApplication(
+                null, null, LocalDate.of(2026, 3, 31), LocalDate.of(2026, 3, 1), PAGE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("from cannot be after to")
+                .extracting(e -> ((BusinessException) e).getStatus())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verifyNoInteractions(applicationRepository);
     }
 
     @Test

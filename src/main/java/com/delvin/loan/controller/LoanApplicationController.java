@@ -5,6 +5,7 @@ import com.delvin.loan.common.LoanStatus;
 import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.loanreq.LoanApplicationCreateRequest;
+import com.delvin.loan.dto.response.loanresp.CreditScoreResponse;
 import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
 import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.AppUser;
@@ -13,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.core.PropertyReferenceException;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -23,6 +25,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -37,10 +40,14 @@ public class LoanApplicationController {
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> getAllApplication(
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @PageableDefault(size = 10, sort = "submissionDate", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseUtil.success(
                 "Loan Application retrieved",
-                applicationService.getAllApplication(status, search, pageable));
+                applicationService.getAllApplication(status, search, from, to, pageable));
     }
 
     @GetMapping("/bucket")
@@ -84,6 +91,13 @@ public class LoanApplicationController {
         } catch (Exception e) {
             return ResponseUtil.error(HttpStatus.INTERNAL_SERVER_ERROR,"Failed to retrieve loan application");
         }
+    }
+
+    @GetMapping("/{applicationId}/credit-score")
+    public ResponseEntity<ApiResponse<CreditScoreResponse>> creditScore(@PathVariable String applicationId) {
+        return ResponseUtil.success(
+                "Credit score retrieved",
+                applicationService.creditScore(applicationId));
     }
 
     @GetMapping("/customer/{customerId}")

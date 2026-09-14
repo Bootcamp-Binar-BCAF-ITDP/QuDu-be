@@ -4,6 +4,7 @@ import com.delvin.loan.common.ApiResponse;
 import com.delvin.loan.common.LoanStatus;
 import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.common.RoleName;
+import com.delvin.loan.dto.response.loanresp.CreditScoreResponse;
 import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
 import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.AppUser;
@@ -20,9 +21,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -52,10 +55,10 @@ class LoanApplicationControllerTest {
     @Test
     @DisplayName("the list is returned in the standard envelope")
     void listReturnsApplications() {
-        when(applicationService.getAllApplication(null, null, PAGE)).thenReturn(onePage());
+        when(applicationService.getAllApplication(null, null, null, null, PAGE)).thenReturn(onePage());
 
         ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> result =
-                controller.getAllApplication(null, null, PAGE);
+                controller.getAllApplication(null, null, null, null, PAGE);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(result.getBody().getMessage()).isEqualTo("Loan Application retrieved");
@@ -65,11 +68,11 @@ class LoanApplicationControllerTest {
     @DisplayName("status and search are passed straight through")
     void filtersReachTheService() {
         List<String> statuses = List.of(LoanStatus.CHECKING);
-        when(applicationService.getAllApplication(statuses, "budi", PAGE)).thenReturn(onePage());
+        when(applicationService.getAllApplication(statuses, "budi", null, null, PAGE)).thenReturn(onePage());
 
-        controller.getAllApplication(statuses, "budi", PAGE);
+        controller.getAllApplication(statuses, "budi", null, null, PAGE);
 
-        verify(applicationService).getAllApplication(statuses, "budi", PAGE);
+        verify(applicationService).getAllApplication(statuses, "budi", null, null, PAGE);
     }
 
     @Test
@@ -163,6 +166,50 @@ class LoanApplicationControllerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(result.getBody().getMessage()).isEqualTo("Failed to retrieve loan application");
+    }
+
+    @Test
+    @DisplayName("the credit score is returned for one application")
+    void creditScoreReturnsRatio() {
+        CreditScoreResponse score = new CreditScoreResponse(
+                new BigDecimal("1066186"), new BigDecimal("0.12"), new BigDecimal("5000000"),
+                new BigDecimal("21.32"), "LOW", null);
+        when(applicationService.creditScore(TestFixtures.APPLICATION_ID)).thenReturn(score);
+
+        ResponseEntity<ApiResponse<CreditScoreResponse>> result =
+                controller.creditScore(TestFixtures.APPLICATION_ID);
+
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(result.getBody().getMessage()).isEqualTo("Credit score retrieved");
+        assertThat(result.getBody().getData().getDsr()).isEqualByComparingTo(new BigDecimal("21.32"));
+        assertThat(result.getBody().getData().getBand()).isEqualTo("LOW");
+    }
+
+    @Test
+    @DisplayName("a score that could not be computed still answers 200, carrying the reason")
+    void unavailableScoreIsStillOk() {
+        CreditScoreResponse score = new CreditScoreResponse(
+                null, null, null, null, "UNKNOWN", "The application declares no monthly income");
+        when(applicationService.creditScore(TestFixtures.APPLICATION_ID)).thenReturn(score);
+
+        ResponseEntity<ApiResponse<CreditScoreResponse>> result =
+                controller.creditScore(TestFixtures.APPLICATION_ID);
+
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(result.getBody().getData().getDsr()).isNull();
+        assertThat(result.getBody().getData().getUnavailableReason()).contains("no monthly income");
+    }
+
+    @Test
+    @DisplayName("a score for an unknown application is left to the global handler as a 404")
+    void creditScoreForUnknownApplicationPropagates() {
+        when(applicationService.creditScore("APP-404"))
+                .thenThrow(BusinessException.notFound("Loan application not found: APP-404"));
+
+        assertThatThrownBy(() -> controller.creditScore("APP-404"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getStatus())
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test

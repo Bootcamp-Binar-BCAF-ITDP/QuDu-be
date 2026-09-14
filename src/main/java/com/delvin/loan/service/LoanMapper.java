@@ -2,6 +2,7 @@ package com.delvin.loan.service;
 
 import com.delvin.loan.dto.response.loanresp.*;
 import com.delvin.loan.model.*;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -9,7 +10,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class LoanMapper {
+
+    private final CreditScoreService creditScoreService;
 
     public UserSummary toUserSummary(User user) {
         if (user == null) return null;
@@ -132,7 +136,12 @@ public class LoanMapper {
                 toReviewResponse(app.getReview()),
                 toDecisionResponse(app.getBranchManagerDecision()),
                 verifications,
-                toDisbursementResponse(app.getDisbursement())
+                toDisbursementResponse(app.getDisbursement()),
+                // Carried on the list response rather than fetched per row: a
+                // bucket of ten would otherwise cost the frontend ten extra
+                // calls, and the figure is pure arithmetic over fields already
+                // loaded here.
+                creditScoreService.evaluate(app)
         );
     }
 }

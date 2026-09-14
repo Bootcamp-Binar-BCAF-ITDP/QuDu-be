@@ -4,6 +4,7 @@ import com.delvin.loan.common.DashboardPeriod;
 import com.delvin.loan.common.DateRange;
 import com.delvin.loan.common.StatusGroup;
 import com.delvin.loan.dto.response.dashboard.*;
+import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.repository.LoanApplicationRepository;
 import com.delvin.loan.repository.LoanApplicationRepository.DailyStatusCount;
 import com.delvin.loan.repository.LoanApplicationRepository.StatusCount;
@@ -27,9 +28,32 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public DashboardResponse getDashboard(DashboardPeriod period) {
+        return getDashboard(period, null, null);
+    }
+
+    /**
+     * A custom window overrides the preset, and both dates must be given for it
+     * to count. One date alone is ambiguous - "since March" and "up to March"
+     * are different questions - so it is refused rather than guessed at.
+     *
+     * The comparison figures then use the window of equal length immediately
+     * before it, which is the only reading of "previous" that does not depend on
+     * a calendar unit the custom range may not align with.
+     */
+    @Transactional(readOnly = true)
+    public DashboardResponse getDashboard(DashboardPeriod period, LocalDate from, LocalDate to) {
         LocalDate today = LocalDate.now();
-        DateRange current = resolve(period, today);
-        DateRange previous = previous(period, current);
+
+        boolean custom = from != null || to != null;
+        if (custom && (from == null || to == null)) {
+            throw BusinessException.badRequest("from and to must be supplied together");
+        }
+        if (custom && from.isAfter(to)) {
+            throw BusinessException.badRequest("from cannot be after to");
+        }
+
+        DateRange current = custom ? new DateRange(from, to) : resolve(period, today);
+        DateRange previous = custom ? precedingWindow(current) : previous(period, current);
 
         Map<StatusGroup, Long> now = group(
                 applicationRepository.countByStatusBetween(current.from(), current.to()));
@@ -148,6 +172,12 @@ public class DashboardService {
             case LAST_30_DAYS -> new DateRange(today.minusDays(29), today);
             case THIS_YEAR -> new DateRange(today.withDayOfYear(1), today);
         };
+    }
+
+    /** The window of equal length ending the day before this one starts. */
+    private DateRange precedingWindow(DateRange current) {
+        long days = ChronoUnit.DAYS.between(current.from(), current.to()) + 1;
+        return new DateRange(current.from().minusDays(days), current.from().minusDays(1));
     }
 
     private DateRange previous(DashboardPeriod period, DateRange current) {

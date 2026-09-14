@@ -33,10 +33,10 @@ class DashboardControllerTest {
     @DisplayName("the dashboard is returned in the standard envelope")
     void returnsDashboardInEnvelope() {
         DashboardResponse dashboard = mock(DashboardResponse.class);
-        when(dashboardService.getDashboard(DashboardPeriod.THIS_MONTH)).thenReturn(dashboard);
+        when(dashboardService.getDashboard(DashboardPeriod.THIS_MONTH, null, null)).thenReturn(dashboard);
 
         ResponseEntity<ApiResponse<DashboardResponse>> result =
-                controller.dashboard(DashboardPeriod.THIS_MONTH);
+                controller.dashboard(DashboardPeriod.THIS_MONTH, null, null);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(result.getBody().getMessage()).isEqualTo("Dashboard retrieved");
@@ -47,10 +47,10 @@ class DashboardControllerTest {
     @EnumSource(DashboardPeriod.class)
     @DisplayName("every period is passed straight through to the service")
     void everyPeriodReachesTheService(DashboardPeriod period) {
-        when(dashboardService.getDashboard(period)).thenReturn(mock(DashboardResponse.class));
+        when(dashboardService.getDashboard(period, null, null)).thenReturn(mock(DashboardResponse.class));
 
-        controller.dashboard(period);
+        controller.dashboard(period, null, null);
 
-        verify(dashboardService).getDashboard(period);
+        verify(dashboardService).getDashboard(period, null, null);
     }
 }

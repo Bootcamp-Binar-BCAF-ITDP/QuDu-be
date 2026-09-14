@@ -33,4 +33,6 @@ public class LoanApplicationResponse {
     private List<LoanVerificationResponse> verifications;
 
     private LoanDisbursementResponse disbursement;
+
+    private CreditScoreResponse creditScore;
 }
