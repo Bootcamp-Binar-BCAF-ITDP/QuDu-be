@@ -37,3 +37,9 @@ build/
 
 firebase-credentials.json
 src/main/resources/application.properties
+
+.env
+.env.local
+!.env.example
+/secrets/
+
