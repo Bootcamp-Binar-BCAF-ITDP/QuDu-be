@@ -87,12 +87,6 @@ public final class TestFixtures {
         return branch;
     }
 
-    /**
-     * Branch matters wherever a decision is branch scoped. An application has
-     * no branch column of its own: it is read from the marketing reviewer, so
-     * a test that cares about branch has to set it on the reviewer, not the
-     * application.
-     */
     public static User user(String roleName, int branchId) {
         User user = user(roleName);
         user.setUserId(roleName + "-" + branchId);
@@ -100,7 +94,6 @@ public final class TestFixtures {
         return user;
     }
 
-    /** An application that has already passed marketing, reviewed in [branchId]. */
     public static LoanApplication reviewedApplication(String status, int branchId) {
         LoanApplication application = application(status);
 

@@ -22,10 +22,6 @@ public class DashboardController {
 
     private final DashboardService dashboardService;
 
-    /**
-     * `period` is a preset window. Supplying `from` and `to` together overrides
-     * it with a custom one; the preset is then ignored rather than combined.
-     */
     @GetMapping
     public ResponseEntity<ApiResponse<DashboardResponse>> dashboard(
             @RequestParam(defaultValue = "THIS_MONTH") DashboardPeriod period,

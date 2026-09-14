@@ -5,6 +5,7 @@ import com.delvin.loan.common.ResponseUtil;
 import com.delvin.loan.dto.request.auth.ForgotPasswordRequest;
 import com.delvin.loan.dto.request.auth.LoginRequest;
 import com.delvin.loan.dto.request.auth.RegisterRequest;
+import com.delvin.loan.dto.request.auth.RefreshTokenRequest;
 import com.delvin.loan.dto.request.auth.RegistrationOtpRequest;
 import com.delvin.loan.dto.request.auth.ResetPasswordRequest;
 import com.delvin.loan.dto.response.auth.AuthResponse;
@@ -47,6 +48,21 @@ public class AuthController {
         AuthResponse response = authService.login(request);
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(
+            @Valid @RequestBody RefreshTokenRequest request) {
+
+        return ResponseEntity.ok(authService.refresh(request.getRefreshToken()));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @Valid @RequestBody RefreshTokenRequest request) {
+
+        authService.logout(request.getRefreshToken());
+        return ResponseUtil.success("Signed out", null);
     }
 
     @PostMapping("/forgot-password")

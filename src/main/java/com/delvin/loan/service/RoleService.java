@@ -96,7 +96,6 @@ public class RoleService {
             roleMenuRepository.save(roleMenu);
         }
 
-        // re-fetch so roleMenus is populated before mapping to response
         savedRole = roleRepository.findById(savedRole.getRoleId())
                 .orElseThrow();
 

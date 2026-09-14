@@ -41,7 +41,6 @@ public class BranchManagerService {
     private final LoanMapper mapper;
     private final ApplicationEventPublisher events;
 
-    // APPLICATION
     public PageResponse<LoanApplicationResponse> listBranchManagerBucket(
             String branchManagerUserId, Pageable pageable) {
 
@@ -136,7 +135,6 @@ public class BranchManagerService {
         return mapper.toApplicationResponse(application);
     }
 
-    // PLAFOND
     @Transactional(readOnly = true)
     public PageResponse<PlafondRequestResponse> listPlafondRequestBucket(Pageable pageable) {
 
@@ -214,7 +212,6 @@ public class BranchManagerService {
 
     public record StoredPlafondDocument(Path path, MediaType contentType, String fileName) {}
 
-    // HELPER
     private CustomerPlafondRequest findPending(String requestId) {
 
         CustomerPlafondRequest request = plafondRequestRepository.findById(requestId)

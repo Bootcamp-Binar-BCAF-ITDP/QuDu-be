@@ -10,14 +10,6 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/**
- * A document attached to a limit-increase request, as the branch manager's
- * review page sees it.
- *
- * No {@code fileUrl}: that column holds a filesystem path, and handing it to a
- * browser only ever produced a broken link. The bytes come from
- * {@code GET /api/bm/plafond-requests/{id}/documents/{documentId}/content}.
- */
 @Getter
 @Setter
 @Builder

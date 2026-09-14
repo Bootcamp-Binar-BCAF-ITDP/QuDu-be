@@ -5,6 +5,9 @@ import com.delvin.loan.common.OtpCodes;
 import com.delvin.loan.dto.response.auth.RegisterResponse;
 import com.delvin.loan.dto.response.menu.MenuResponse;
 import com.delvin.loan.exception.BusinessException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import com.delvin.loan.model.AppUser;
+import java.time.Instant;
 import com.delvin.loan.model.*;
 import com.delvin.loan.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +57,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
+    private final AppUserDetailsService appUserDetailsService;
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
@@ -329,8 +334,13 @@ public class AuthService {
         List<MenuResponse> menus =
                 getUserMenus(user.getUserId());
 
+        RefreshTokenService.IssuedToken refresh =
+                refreshTokenService.issue(appUser.getUsername(), AccountType.USER);
+
         return AuthResponse.builder()
                 .token(token)
+                .refreshToken(refresh.token())
+                .expiresIn(jwtService.accessTtlSeconds())
                 .userId(user.getUserId())
                 .username(user.getUsername())
                 .email(user.getEmail())
@@ -342,6 +352,42 @@ public class AuthService {
                 )
                 .menus(menus)
                 .build();
+    }
+
+    @Transactional
+    public AuthResponse refresh(String refreshToken) {
+
+        Instant now = Instant.now();
+        RefreshTokenService.RotationResult rotated = refreshTokenService.rotate(refreshToken, now);
+
+        AppUser principal;
+        try {
+            principal = (AppUser) appUserDetailsService.loadUserByUsername(rotated.subject());
+        } catch (UsernameNotFoundException e) {
+            refreshTokenService.revokeAllFor(rotated.subject(), now);
+            throw BusinessException.unauthorized("Your session has expired. Sign in again.");
+        }
+
+        String accessToken = jwtService.reissue(principal, now);
+
+        List<MenuResponse> menus = principal.getAccountType() == AccountType.CUSTOMER
+                ? Collections.emptyList()
+                : getUserMenus(principal.getUserId());
+
+        return AuthResponse.builder()
+                .token(accessToken)
+                .refreshToken(rotated.token().token())
+                .expiresIn(jwtService.accessTtlSeconds())
+                .userId(principal.getUserId())
+                .username(principal.getUsername())
+                .role(principal.getRole())
+                .menus(menus)
+                .build();
+    }
+
+    @Transactional
+    public void logout(String refreshToken) {
+        refreshTokenService.revoke(refreshToken, Instant.now());
     }
 
     private AuthResponse loginCustomer(LoginRequest request) {
@@ -370,8 +416,13 @@ public class AuthService {
                 java.time.Instant.now()
         );
 
+        RefreshTokenService.IssuedToken refresh =
+                refreshTokenService.issue(appCustomer.getEmail(), AccountType.CUSTOMER);
+
         return AuthResponse.builder()
                 .token(token)
+                .refreshToken(refresh.token())
+                .expiresIn(jwtService.accessTtlSeconds())
                 .userId(customer.getCustomerId())
                 .username(customer.getEmail())
                 .email(customer.getEmail())

@@ -54,7 +54,6 @@ public class CustomerPlafondRequest {
     @Column(name = "notes")
     private String notes;
 
-    /** The paperwork as it stood when this was filed - see PlafondRequestDocument. */
     @OneToMany(mappedBy = "request")
     private List<PlafondRequestDocument> documents;
 }

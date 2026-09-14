@@ -92,7 +92,6 @@ public class CustomerController {
                 documentService.listOwnDocuments(appUser.getUserId(), applicationId));
     }
 
-    // PROFILE
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<CustomerProfileResponse>> getProfile(
             @AuthenticationPrincipal AppUser appUser) {
@@ -128,7 +127,6 @@ public class CustomerController {
                 customerDocumentService.list(appUser.getUserId()));
     }
 
-    // PLAFOND
     @GetMapping("/plafond")
     public ResponseEntity<ApiResponse<CustomerPlafondResponse>> getMyPlafond(
             @AuthenticationPrincipal AppUser appUser) {
@@ -146,7 +144,6 @@ public class CustomerController {
                 customerService.requestPlafond(appUser.getUserId(), request));
     }
 
-    /** History of the customer's own limit requests. */
     @GetMapping("/plafond/requests")
     public ResponseEntity<ApiResponse<List<PlafondRequestResponse>>> myPlafondRequests(
             @AuthenticationPrincipal AppUser appUser) {
@@ -155,7 +152,6 @@ public class CustomerController {
                 customerService.getMyPlafondRequests(appUser.getUserId()));
     }
 
-    // NOTIFICATIONS
     @GetMapping("/notifications")
     public ResponseEntity<ApiResponse<PageResponse<NotificationResponse>>> myNotifications(
             @AuthenticationPrincipal AppUser appUser,
@@ -190,7 +186,6 @@ public class CustomerController {
                 Map.of("updated", notificationService.markAllRead(appUser.getUserId())));
     }
 
-    // DEVICE TOKENS (step 6 - push notifications)
     @PostMapping("/device-tokens")
     public ResponseEntity<ApiResponse<Void>> registerDeviceToken(
             @AuthenticationPrincipal AppUser appUser,

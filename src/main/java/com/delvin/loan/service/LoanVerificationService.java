@@ -50,7 +50,6 @@ public class LoanVerificationService {
         if (CallStatus.CAN_BE_CONTACTED.equals(callStatus)) {
             application.setStatus(LoanStatus.VERIFIED);
         }
-        // otherwise the application stays in PENDING_BACK_OFFICE so back office can re-attempt the call
 
         return mapper.toVerificationResponse(verification);
     }

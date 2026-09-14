@@ -135,7 +135,6 @@ public class LoanDisbursementService {
         return mapper.toDisbursementResponse(disbursement);
     }
 
-    // Helper
     User getUserWithRole(String userId, String expectedRoleName) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> BusinessException.notFound("User not found: " + userId));

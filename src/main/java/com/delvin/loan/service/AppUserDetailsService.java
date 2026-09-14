@@ -27,7 +27,6 @@ public class AppUserDetailsService implements UserDetailsService {
             String usernameOrEmail
     ) {
 
-        // CHECK INTERNAL USER
         User user = userRepository
                 .findByUsernameOrEmail(usernameOrEmail, usernameOrEmail)
                 .orElse(null);
@@ -55,7 +54,6 @@ public class AppUserDetailsService implements UserDetailsService {
             return appUser;
         }
 
-        // CHECK CUSTOMER
         Customer customer = customerRepository
                 .findByEmail(usernameOrEmail)
                 .orElseThrow(() ->
@@ -68,7 +66,6 @@ public class AppUserDetailsService implements UserDetailsService {
 
         appUser.setUserId(customer.getCustomerId());
 
-        // Customer logs in with email
         appUser.setUsername(customer.getEmail());
 
         appUser.setPassword(customer.getPassword());

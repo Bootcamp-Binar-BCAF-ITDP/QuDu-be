@@ -50,7 +50,6 @@ public class EmailService {
         mailSender.send(message);
     }
 
-    /** The code a new customer types back to prove the address is theirs. */
     public void sendRegistrationOtpEmail(
             String email,
             String code,

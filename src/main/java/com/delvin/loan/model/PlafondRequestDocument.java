@@ -6,15 +6,6 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/**
- * A copy of the customer's paperwork as it stood when a limit increase was
- * filed, so the branch manager decides on what was actually submitted.
- *
- * A copy rather than a live reference for the same reason
- * {@link LoanDocument} snapshots them: replacing a payslip next month must not
- * quietly rewrite the evidence behind a decision already made. The file on disk
- * is shared with the customer's row - only the pointer is duplicated.
- */
 @Entity
 @Getter
 @Setter

@@ -137,10 +137,6 @@ public class LoanMapper {
                 toDecisionResponse(app.getBranchManagerDecision()),
                 verifications,
                 toDisbursementResponse(app.getDisbursement()),
-                // Carried on the list response rather than fetched per row: a
-                // bucket of ten would otherwise cost the frontend ten extra
-                // calls, and the figure is pure arithmetic over fields already
-                // loaded here.
                 creditScoreService.evaluate(app)
         );
     }

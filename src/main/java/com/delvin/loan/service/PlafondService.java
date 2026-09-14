@@ -25,15 +25,11 @@ public class PlafondService {
 
     private final PlafondRepository plafondRepository;
 
-    // Master data (admin)
     @Transactional(readOnly = true)
     public PageResponse<PlafondResponse> getAll(String search, Pageable pageable) {
 
         Page<Plafond> plafonds = plafondRepository.search(toKeyword(search), pageable);
 
-//        List<Plafond> plafonds = activeOnly
-//                ? plafondRepository.findAllByIsActiveTrueOrderByLevelAsc()
-//                : plafondRepository.findAllByOrderByLevelAsc();
 
         return PageResponse.of(plafonds, this::toResponse);
     }
@@ -87,7 +83,6 @@ public class PlafondService {
 
         validateNoOverlap(request, plafondId);
 
-        // Level 1 is what every new customer gets, so it can never be switched off.
         if (Objects.equals(plafond.getLevel(), DEFAULT_LEVEL) && Boolean.FALSE.equals(request.getIsActive())) {
             throw BusinessException.badRequest(
                     "The default plafond (level " + DEFAULT_LEVEL + ") cannot be deactivated");
@@ -112,7 +107,6 @@ public class PlafondService {
         plafondRepository.save(plafond);
     }
 
-    // Shared with CustomerService / BranchManagerService
     @Transactional(readOnly = true)
     public Plafond getDefaultPlafond() {
         return plafondRepository.findByLevel(DEFAULT_LEVEL)
@@ -146,7 +140,6 @@ public class PlafondService {
         return PlafondResponse.from(resolveByAmount(requestedAmount));
     }
 
-    // Helpers
     private PlafondResponse toResponse(Plafond plafond) {
         PlafondResponse response = new PlafondResponse();
 

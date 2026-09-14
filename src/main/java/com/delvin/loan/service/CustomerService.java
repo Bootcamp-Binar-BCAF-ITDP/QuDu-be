@@ -47,7 +47,6 @@ public class CustomerService {
     private final CustomerDocumentService customerDocumentService;
     private final CreditLimitService creditLimitService;
 
-    // APPLICATION
     @Transactional
     public LoanApplicationResponse createApplication(LoanApplicationCreateRequest request) {
         Customer customer = customerRepository.findById(request.getCustomerId())
@@ -77,7 +76,6 @@ public class CustomerService {
         return mapper.toApplicationResponse(application);
     }
 
-    // PROFILE
     @Transactional(readOnly = true)
     public CustomerProfileResponse getProfile(String customerId) {
         return toProfileResponse(findCustomer(customerId));
@@ -129,7 +127,6 @@ public class CustomerService {
                 .build();
     }
 
-    // PLAFOND
     @Transactional(readOnly = true)
     public CustomerPlafondResponse getMyPlafond(String customerId) {
 
@@ -150,8 +147,6 @@ public class CustomerService {
 
         Customer customer = findCustomer(customerId);
 
-        // Same bar as a loan application: a branch manager deciding a limit
-        // increase needs the same evidence, and neither may be filed empty.
         customerDocumentService.requireCompleteForSubmission(customerId);
 
         if (plafondRequestRepository.existsByCustomer_CustomerIdAndStatus(customerId, PlafondRequestStatus.PENDING)) {
@@ -207,7 +202,6 @@ public class CustomerService {
                 .toList();
     }
 
-    // DEVICE TOKEN (push notifications)
     public void registerDeviceToken(String customerId, DeviceTokenRequest body) {
 
         Customer customer = findCustomer(customerId);
@@ -237,7 +231,6 @@ public class CustomerService {
                 .ifPresent(deviceTokenRepository::delete);
     }
 
-    // Helper
     private String generateApplicationId() {
         return "LA-" + LocalDate.now().toString().replace("-", "") + "-"
                 + UUID.randomUUID().toString().substring(0, 8).toUpperCase();

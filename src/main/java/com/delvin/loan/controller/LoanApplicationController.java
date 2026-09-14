@@ -51,7 +51,6 @@ public class LoanApplicationController {
     }
 
     @GetMapping("/bucket")
-    // @PreAuthorize("hasAnyRole('MARKETING','BRANCH_MANAGER','BACK_OFFICE')")
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> getMyBucket(
             @AuthenticationPrincipal AppUser appUser,
             @PageableDefault(size = 10, sort = "submissionDate", direction = Sort.Direction.DESC) Pageable pageable) {

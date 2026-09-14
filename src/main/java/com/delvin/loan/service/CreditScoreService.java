@@ -10,20 +10,6 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 
-/**
- * Credit scoring, defined as the debt service ratio and nothing else.
- *
- * DSR = monthly instalment / monthly income * 100.
- *
- * The instalment is not stored anywhere, so it is derived here from the amount,
- * the tenor and the interest rate of the plafond the customer holds. That makes
- * this the one place the figure exists: a screen that recomputed it would
- * eventually disagree with the decision that was taken.
- *
- * **Only this application is counted.** A full DSR would add every instalment
- * the customer is already paying. That is deliberately out of scope here, and
- * it means the ratio understates the burden for a customer with a running loan.
- */
 @Service
 public class CreditScoreService {
 
@@ -33,10 +19,6 @@ public class CreditScoreService {
     public static final String BAND_VERY_HIGH = "VERY_HIGH";
     public static final String BAND_UNKNOWN = "UNKNOWN";
 
-    /**
-     * Where one band ends and the next begins, in percent. These are a lending
-     * policy choice, not arithmetic - change them here and every screen follows.
-     */
     public static final BigDecimal LOW_CEILING = new BigDecimal("30");
     public static final BigDecimal MODERATE_CEILING = new BigDecimal("40");
     public static final BigDecimal HIGH_CEILING = new BigDecimal("50");
@@ -78,16 +60,6 @@ public class CreditScoreService {
         return new CreditScoreResponse(instalment, rate, income, dsr, bandOf(dsr), null);
     }
 
-    /**
-     * The standard annuity instalment.
-     *
-     * Computed as principal * r * f / (f - 1) where f = (1 + r)^n, which is the
-     * same figure as the textbook form with a negative exponent but avoids
-     * raising a BigDecimal to a negative power.
-     *
-     * Returns null rather than zero when an input is missing: zero instalment
-     * is a real answer at a zero rate, so it cannot double as "unknown".
-     */
     public BigDecimal monthlyInstalment(BigDecimal principal, Integer tenor, BigDecimal annualRate) {
 
         if (principal == null || principal.signum() <= 0) return null;

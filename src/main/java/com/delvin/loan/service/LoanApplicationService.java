@@ -36,14 +36,6 @@ public class LoanApplicationService {
     private final LoanMapper mapper;
     private final CreditScoreService creditScoreService;
 
-    /**
-     * Every filter goes through one query. The old four-branch version would
-     * have needed eight branches once dates arrived, and each branch is a place
-     * for the filters to drift apart.
-     *
-     * @param from inclusive, null for no lower bound
-     * @param to   inclusive, null for no upper bound
-     */
     @Transactional(readOnly = true)
     public PageResponse<LoanApplicationResponse> getAllApplication(
             List<String> statuses, String search, LocalDate from, LocalDate to, Pageable pageable) {
@@ -116,11 +108,6 @@ public class LoanApplicationService {
         return mapper.toApplicationResponse(getApplicationOrThrow(applicationId));
     }
 
-    /**
-     * The same figure the list already carries, for callers that hold only an
-     * id. 404s on an unknown application rather than returning an empty score,
-     * so "no such application" cannot be mistaken for "no ratio available".
-     */
     @Transactional(readOnly = true)
     public CreditScoreResponse creditScore(String applicationId) {
         return creditScoreService.evaluate(getApplicationOrThrow(applicationId));
@@ -162,16 +149,9 @@ public class LoanApplicationService {
                 mapper::toApplicationResponse);
     }
 
-    // ---- internal helpers ----
-    /**
-     * Stand-ins for "no bound given", chosen to sit far outside any submission
-     * date the system will ever hold. They exist so the query needs no nullable
-     * date parameter - see the note on LoanApplicationRepository.filter.
-     */
     static final LocalDate EARLIEST = LocalDate.of(1900, 1, 1);
     static final LocalDate LATEST = LocalDate.of(9999, 12, 31);
 
-    /** Matches every row under LIKE, which is how "no search" is expressed. */
     static final String MATCH_ALL = "%";
 
     private String normalizeSearch(String search) {

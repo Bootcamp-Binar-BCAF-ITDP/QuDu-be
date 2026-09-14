@@ -63,7 +63,6 @@ public class BranchManagerController {
         );
     }
 
-    // PLAFOND
     @GetMapping("/plafond-requests")
     public ResponseEntity<ApiResponse<PageResponse<PlafondRequestResponse>>> plafondRequestBucket(
             @PageableDefault(size = 10, sort = "requestDate", direction = Sort.Direction.ASC)
@@ -75,11 +74,6 @@ public class BranchManagerController {
         );
     }
 
-    /**
-     * Streams one document attached to a limit-increase request, inline, so the
-     * branch manager reads it in a modal instead of downloading it. The
-     * loan-application equivalent lives on LoanDocumentController.
-     */
     @GetMapping("/plafond-requests/{requestId}/documents/{documentId}/content")
     public ResponseEntity<Resource> plafondRequestDocument(@PathVariable String requestId,
                                                            @PathVariable Integer documentId) {

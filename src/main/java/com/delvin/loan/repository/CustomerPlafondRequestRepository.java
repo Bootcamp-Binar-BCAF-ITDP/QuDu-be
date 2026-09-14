@@ -19,6 +19,5 @@ public interface CustomerPlafondRequestRepository extends JpaRepository<Customer
 
     boolean existsByCustomer_CustomerIdAndStatus(String customerId, PlafondRequestStatus status);
 
-    /** Branch manager bucket. */
     Page<CustomerPlafondRequest> findByStatus(PlafondRequestStatus status, Pageable pageable);
 }

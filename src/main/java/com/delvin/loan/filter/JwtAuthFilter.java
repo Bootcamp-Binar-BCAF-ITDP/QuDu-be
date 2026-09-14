@@ -39,7 +39,6 @@ public class JwtAuthFilter  extends OncePerRequestFilter {
         String authorization =
                 request.getHeader("Authorization");
 
-        // Tidak ada token
         if (authorization == null ||
                 !authorization.startsWith(PREFIX)) {
 

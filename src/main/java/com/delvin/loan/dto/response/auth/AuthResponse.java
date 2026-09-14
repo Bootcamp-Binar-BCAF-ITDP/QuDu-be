@@ -13,6 +13,10 @@ import java.util.List;
 public class AuthResponse {
 
     private String token;
+
+    private String refreshToken;
+
+    private Long expiresIn;
     private String userId;
     private String username;
     private String role;

@@ -37,7 +37,6 @@ public class PlafondRequestResponse {
 
     private PlafondResponse requestedPlafond;
 
-    /** The paperwork the decision is meant to be made on. Never empty in practice. */
     private List<PlafondRequestDocumentResponse> documents;
 
     public static PlafondRequestResponse from(CustomerPlafondRequest request) {

@@ -43,20 +43,6 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
             """)
     Page<LoanApplication> search(@Param("term") String term, Pageable pageable);
 
-    /**
-     * One query for every combination of status, search term and date window.
-     *
-     * Deliberately carries no nullable parameters. The caller widens instead:
-     * an empty status filter becomes every status, an empty search becomes the
-     * wildcard "%", and an open-ended date becomes a sentinel far outside any
-     * real submission date. That keeps the JPQL free of `:param IS NULL` checks,
-     * which are the ones that fail on Postgres with "could not determine data
-     * type of parameter" and cannot be caught by a mocked unit test.
-     *
-     * Applications with no submissionDate are therefore excluded. Every
-     * application gets one at creation, and the dashboard's BETWEEN queries
-     * already assume it.
-     */
     @Query("""
             SELECT a FROM LoanApplication a
             LEFT JOIN a.customer c

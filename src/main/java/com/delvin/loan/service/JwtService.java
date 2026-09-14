@@ -1,5 +1,6 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.AccountType;
 import com.delvin.loan.model.AppCustomer;
 import com.delvin.loan.model.AppUser;
 import io.jsonwebtoken.Claims;
@@ -39,7 +40,6 @@ public class JwtService {
         this.ttl = Duration.ofMinutes(ttlMinutes);
     }
 
-    // USER JWT
     public String issue(
             AppUser user,
             Instant issuedAt
@@ -49,7 +49,6 @@ public class JwtService {
                 .compact();
     }
 
-    // CUSTOMER JWT
     public String issue(
             AppCustomer customer,
             Instant issuedAt
@@ -59,7 +58,30 @@ public class JwtService {
                 .compact();
     }
 
-    // PARSE TOKEN
+    public String reissue(AppUser principal, Instant issuedAt) {
+
+        JwtBuilder builder = Jwts.builder()
+                .subject(principal.getUsername())
+                .claim("username", principal.getUsername())
+                .claim("role", principal.getRole())
+                .issuedAt(Date.from(issuedAt))
+                .signWith(key);
+
+        if (principal.getAccountType() == AccountType.CUSTOMER) {
+            builder.claim("customerId", principal.getUserId())
+                    .claim("accountType", "CUSTOMER");
+        } else {
+            builder.claim("userId", principal.getUserId())
+                    .claim("accountType", "USER");
+        }
+
+        return builder.expiration(Date.from(issuedAt.plus(ttl))).compact();
+    }
+
+    public long accessTtlSeconds() {
+        return ttl.toSeconds();
+    }
+
     public Claims parse(String token) {
 
         return Jwts.parser()
@@ -69,7 +91,6 @@ public class JwtService {
                 .getPayload();
     }
 
-    // USER TOKEN BUILDER
     private JwtBuilder userBuilder(
             AppUser user,
             Instant issuedAt
@@ -85,7 +106,6 @@ public class JwtService {
                 .signWith(key);
     }
 
-    // CUSTOMER TOKEN BUILDER
     private JwtBuilder customerBuilder(
             AppCustomer customer,
             Instant issuedAt
