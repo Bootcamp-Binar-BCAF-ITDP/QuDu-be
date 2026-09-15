@@ -155,6 +155,7 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(request -> request
                         .requestMatchers(SecurityRoutes.PUBLIC).permitAll()
+                        .requestMatchers(SecurityRoutes.DOCS).permitAll()
                         .requestMatchers(SecurityRoutes.LOAN_APPLICATIONS).hasAnyRole(
                                 RoleName.SUPERADMIN,
                                 RoleName.MARKETING,

@@ -25,8 +25,9 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - name: Run tests
-        run: ./mvnw -B test -Dtest='!LoanApplicationTests'
+      # verify, not test: that is the phase the JaCoCo coverage gate runs in.
+      - name: Run tests and the coverage gate
+        run: ./mvnw -B verify -Dtest='!LoanApplicationTests'
 
       - name: Publish test report
         if: always()
@@ -36,3 +37,29 @@ jobs:
           path: target/surefire-reports/
           retention-days: 7
           if-no-files-found: ignore
+
+      # Download and open index.html to see which lines are untested.
+      - name: Publish coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage
+          path: target/site/jacoco/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          CSV=target/site/jacoco/jacoco.csv
+          [ -f "$CSV" ] || exit 0
+          awk -F, 'NR>1 {im+=$4; ic+=$5; bm+=$6; bc+=$7}
+               END {
+                 printf "| Counter | Covered | Total | %% |
+|---|---|---|---|
+"
+                 printf "| Instructions | %d | %d | %.1f%% |
+", ic, ic+im, 100*ic/(ic+im)
+                 printf "| Branches | %d | %d | %.1f%% |
+", bc, bc+bm, 100*bc/(bc+bm)
+               }' "$CSV" >> "$GITHUB_STEP_SUMMARY"

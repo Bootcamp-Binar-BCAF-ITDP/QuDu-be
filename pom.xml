@@ -31,6 +31,8 @@
         <kotlin.version>2.3.20</kotlin.version>
         <jjwt.version>0.12.6</jjwt.version>
         <firebase.admin.version>9.4.1</firebase.admin.version>
+        <springdoc.version>3.1.1</springdoc.version>
+        <jacoco.version>0.8.15</jacoco.version>
     </properties>
     <dependencies>
         <dependency>
@@ -150,6 +152,13 @@
             <artifactId>firebase-admin</artifactId>
             <version>${firebase.admin.version}</version>
         </dependency>
+        <!-- 3.x is the Spring Boot 4 line. springdoc 2.x builds against Boot 3
+             and does not work here. -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -157,6 +166,71 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Test coverage. The report lands in target/site/jacoco/index.html
+                 after ./mvnw test, so no extra phase is needed to see it.
+
+                 Only the Spring Boot entry point is excluded: it is a main()
+                 that starts the whole application, which no unit test calls.
+                 Nothing else is hidden, so the number is the real one. Lombok's
+                 generated accessors are filtered separately, by lombok.config. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <configuration>
+                    <excludes>
+                        <exclude>com/delvin/loan/LoanApplication.class</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <!-- A ratchet, not a target. The minimums sit just below
+                         where the project stands today, so they pass now and a
+                         real drop fails the build. Raise them as coverage
+                         improves; never lower them to make a build go green.
+
+                         Bound to verify rather than test, so `./mvnw test`
+                         stays fast for local work while CI enforces it. -->
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.40</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.30</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>

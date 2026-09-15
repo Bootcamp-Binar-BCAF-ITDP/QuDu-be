@@ -31,7 +31,13 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - run: ./mvnw -B test -Dtest='!LoanApplicationTests'
+      # LoanApplicationTests is the generated @SpringBootTest context loader and
+      # needs a real Postgres. Everything else is plain Mockito.
+      #
+      # verify rather than test, because that is the phase the JaCoCo gate runs
+      # in: a drop in coverage blocks the deploy for the same reason a failing
+      # test does.
+      - run: ./mvnw -B verify -Dtest='!LoanApplicationTests'
 
   build:
     name: Build and push image
