@@ -54,8 +54,15 @@ jobs:
       #
       # LoanApplicationTests adalah @SpringBootTest bawaan yang butuh PostgreSQL
       # sungguhan. Sisanya Mockito murni.
+      #
+      # chmod dulu: repo ini ditulis dari Windows, tempat git tidak merekam bit
+      # executable, sehingga checkout bisa memberi runner mvnw yang tidak bisa
+      # dijalankan. Bit-nya sudah disetel di index; baris ini jaring pengaman
+      # kalau suatu saat hilang lagi.
       - name: Test dan gerbang coverage
-        run: ./mvnw -B verify -Dtest='!LoanApplicationTests'
+        run: |
+          chmod +x ./mvnw
+          ./mvnw -B verify -Dtest='!LoanApplicationTests'
 
       - name: Laporan test
         if: always()

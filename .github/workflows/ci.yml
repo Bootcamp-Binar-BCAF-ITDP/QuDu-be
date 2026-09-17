@@ -27,8 +27,15 @@ jobs:
           cache: maven
 
       # verify, not test: that is the phase the JaCoCo coverage gate runs in.
+      #
+      # chmod first: the repo is authored on Windows, where git does not record
+      # the executable bit, so a fresh checkout can hand the runner an mvnw it
+      # cannot run. The bit is set in the index now, and this keeps the build
+      # green if it is ever lost again.
       - name: Run tests and the coverage gate
-        run: ./mvnw -B verify -Dtest='!LoanApplicationTests'
+        run: |
+          chmod +x ./mvnw
+          ./mvnw -B verify -Dtest='!LoanApplicationTests'
 
       - name: Publish test report
         if: always()
