@@ -135,13 +135,48 @@ jobs:
         with:
           name: app-jar
 
+      # tr -d '\r': kunci yang disalin dari Windows membawa akhir baris CRLF,
+      # dan OpenSSH menolaknya dengan "error in libcrypto" yang tidak menyebut
+      # sebabnya. Secret dilewatkan lewat env, bukan disisipkan ke skrip, agar
+      # isinya tidak pernah ditafsirkan shell.
       - name: Siapkan SSH
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "$EC2_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "${{ secrets.EC2_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "$EC2_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
+
+          if ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "Kunci deploy terbaca."
+            exit 0
+          fi
+
+          echo "::error::EC2_SSH_KEY tidak bisa dibaca sebagai kunci privat OpenSSH."
+
+          first=$(head -n 1 ~/.ssh/deploy_key)
+          last=$(grep -v '^$' ~/.ssh/deploy_key | tail -n 1)
+
+          if grep -q 'PuTTY-User-Key-File' ~/.ssh/deploy_key; then
+            echo "Yang tersimpan adalah kunci format PuTTY (.ppk). Runner butuh format OpenSSH."
+          elif grep -q '^ssh-' ~/.ssh/deploy_key; then
+            echo "Yang tersimpan adalah kunci PUBLIK. Yang dibutuhkan pasangan privatnya."
+          elif [ "$first" != "-----BEGIN OPENSSH PRIVATE KEY-----" ]; then
+            echo "Baris pertama bukan '-----BEGIN OPENSSH PRIVATE KEY-----'."
+            echo "Kemungkinan ada spasi, teks lain, atau baris yang terpotong di awal."
+          elif [ "$last" != "-----END OPENSSH PRIVATE KEY-----" ]; then
+            echo "Baris terakhir bukan '-----END OPENSSH PRIVATE KEY-----'."
+            echo "Kemungkinan salinannya terpotong."
+          else
+            echo "Kepala dan ekornya benar, tapi isinya rusak saat disalin."
+            echo "Salin ulang langsung ke clipboard, jangan dari jendela terminal."
+          fi
+
+          echo "Jumlah baris yang tersimpan: $(wc -l < ~/.ssh/deploy_key)"
+          exit 1
 
       # Gagal lebih awal dengan pesan jelas, bukan gagal di tengah scp dengan
       # disk penuh dan server dalam keadaan setengah jadi.
