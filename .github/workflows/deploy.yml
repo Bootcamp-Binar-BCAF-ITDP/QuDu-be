@@ -90,6 +90,32 @@ jobs:
     environment: production
 
     steps:
+      # Tanpa ini, secret yang belum diisi baru ketahuan saat ssh dipanggil
+      # dengan tujuan "@" dan yang muncul hanyalah layar bantuan ssh dan
+      # exit 255 — tidak menyebut satu pun nama secret yang hilang.
+      - name: Pastikan secret deploy sudah terisi
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          missing=""
+          for name in EC2_HOST EC2_USER EC2_SSH_KEY EC2_KNOWN_HOSTS; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+
+          if [ -n "$missing" ]; then
+            echo "::error::Secret deploy belum terisi:$missing"
+            echo "Isi di Settings > Secrets and variables > Actions."
+            echo "Job ini berjalan di environment 'production', jadi environment secret"
+            echo "harus berada di environment yang namanya persis 'production'."
+            echo "Repository secret juga terbaca dan biasanya lebih sederhana."
+            exit 1
+          fi
+
+          echo "Empat secret deploy tersedia."
+
       - name: Tentukan rilis
         id: rel
         run: |
