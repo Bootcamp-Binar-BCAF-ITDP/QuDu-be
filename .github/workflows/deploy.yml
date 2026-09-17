@@ -1,110 +1,108 @@
 name: Deploy
 
+# Setiap push ke main yang lolos test langsung tayang ke server.
+#
+# Jar dibangun di runner GitHub, bukan di server. Server hanya punya RAM 908 MB
+# dan disk yang sempit; membangun Maven di sana lambat dan pernah membuat disk
+# nyaris penuh. Runner punya 16 GB RAM, gratis, dan sudah menjalankan test.
+#
+# Server TIDAK memakai Docker. Aplikasi berjalan lewat systemd sebagai
+# qudu-be.service dengan PostgreSQL native di host. Jangan pernah menjalankan
+# docker compose di sana: itu akan menyalakan database kedua yang kosong dan
+# membuat data asli berhenti terbaca. Lihat DEPLOY.md.
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: 'Existing image tag to deploy, for rolling back. Leave empty to build this commit.'
+      release:
+        description: 'Nama berkas jar di ~/releases untuk di-rollback, mis. a1b2c3d4e5f6.jar. Kosongkan untuk membangun commit ini.'
         required: false
         type: string
 
+# Satu deploy pada satu waktu, dan jangan pernah membatalkan yang sedang jalan:
+# membatalkan di tengah pertukaran symlink meninggalkan server setengah jadi.
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
 env:
-  REGISTRY: ghcr.io
+  LIVE_JAR: /home/ubuntu/app/target/loan-0.0.1-SNAPSHOT.jar
+  RELEASES: /home/ubuntu/releases
+  HEALTH_URL: http://127.0.0.1:8080/api/plafonds/catalog
+  KEEP_RELEASES: 3
 
 jobs:
-  test:
-    name: Unit tests
+  build:
+    name: Test dan bangun jar
     runs-on: ubuntu-latest
-    if: github.event.inputs.image_tag == ''
+    if: github.event.inputs.release == ''
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
 
-      # LoanApplicationTests is the generated @SpringBootTest context loader and
-      # needs a real Postgres. Everything else is plain Mockito.
+      # verify, bukan package: itu fase tempat gerbang coverage JaCoCo berjalan,
+      # jadi penurunan coverage menghentikan deploy sama seperti test yang gagal.
       #
-      # verify rather than test, because that is the phase the JaCoCo gate runs
-      # in: a drop in coverage blocks the deploy for the same reason a failing
-      # test does.
-      - run: ./mvnw -B verify -Dtest='!LoanApplicationTests'
+      # LoanApplicationTests adalah @SpringBootTest bawaan yang butuh PostgreSQL
+      # sungguhan. Sisanya Mockito murni.
+      - name: Test dan gerbang coverage
+        run: ./mvnw -B verify -Dtest='!LoanApplicationTests'
 
-  build:
-    name: Build and push image
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event.inputs.image_tag == ''
-
-    permissions:
-      contents: read
-      packages: write
-
-    outputs:
-      tag: ${{ steps.meta.outputs.tag }}
-      repo: ${{ steps.meta.outputs.repo }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - id: meta
-        run: |
-          echo "repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
-          echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Log in to the registry
-        uses: docker/login-action@v3
+      - name: Laporan test
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
+          if-no-files-found: ignore
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
+      - name: Simpan jar untuk job deploy
+        uses: actions/upload-artifact@v4
         with:
-          context: .
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ steps.meta.outputs.repo }}:${{ steps.meta.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ steps.meta.outputs.repo }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          name: app-jar
+          path: target/loan-0.0.1-SNAPSHOT.jar
+          retention-days: 7
+          if-no-files-found: error
 
   deploy:
-    name: Deploy to EC2
+    name: Tayangkan ke server
     runs-on: ubuntu-latest
     needs: build
-    if: always() && (needs.build.result == 'success' || github.event.inputs.image_tag != '')
-
-    permissions:
-      contents: read
-      packages: read
+    if: always() && (needs.build.result == 'success' || github.event.inputs.release != '')
 
     environment: production
 
     steps:
-      - name: Work out which image to deploy
-        id: target
+      - name: Tentukan rilis
+        id: rel
         run: |
-          REPO=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
-          TAG='${{ github.event.inputs.image_tag }}'
-          if [ -z "$TAG" ]; then TAG='${{ needs.build.outputs.tag }}'; fi
+          if [ -n "${{ github.event.inputs.release }}" ]; then
+            echo "name=${{ github.event.inputs.release }}" >> "$GITHUB_OUTPUT"
+            echo "mode=rollback" >> "$GITHUB_OUTPUT"
+            echo "Rollback ke ${{ github.event.inputs.release }}"
+          else
+            echo "name=${GITHUB_SHA::12}.jar" >> "$GITHUB_OUTPUT"
+            echo "mode=deploy" >> "$GITHUB_OUTPUT"
+            echo "Deploy ${GITHUB_SHA::12}.jar"
+          fi
 
-          echo "image=${{ env.REGISTRY }}/$REPO:$TAG" >> "$GITHUB_OUTPUT"
-          echo "Deploying ${{ env.REGISTRY }}/$REPO:$TAG"
+      - name: Ambil jar
+        if: steps.rel.outputs.mode == 'deploy'
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar
 
-      - name: Prepare SSH
+      - name: Siapkan SSH
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
@@ -112,66 +110,143 @@ jobs:
           printf '%s\n' "${{ secrets.EC2_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Deploy
+      # Gagal lebih awal dengan pesan jelas, bukan gagal di tengah scp dengan
+      # disk penuh dan server dalam keadaan setengah jadi.
+      - name: Periksa ruang disk server
         env:
-          IMAGE: ${{ steps.target.outputs.image }}
-          APP_DIR: ${{ vars.EC2_APP_DIR || '/opt/qudu-be' }}
-          REGISTRY: ${{ env.REGISTRY }}
-          REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes \
-            "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
-            "APP_DIR='$APP_DIR' IMAGE='$IMAGE' REGISTRY='$REGISTRY' \
-             REGISTRY_USER='$REGISTRY_USER' REGISTRY_TOKEN='$REGISTRY_TOKEN' bash -s" <<'REMOTE'
-          set -euo pipefail
-          cd "$APP_DIR"
+          FREE=$(ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$TARGET" \
+                 "df -Pk / | awk 'NR==2 {print \$4}'")
+          FREE_MB=$((FREE / 1024))
+          echo "Ruang bebas di server: ${FREE_MB} MB"
 
-          # The workflow's own token, valid only while this run lasts. No long
-          # lived registry credential is left sitting on the instance.
-          echo "$REGISTRY_TOKEN" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
-          trap 'docker logout "$REGISTRY" >/dev/null 2>&1 || true' EXIT
-
-          # Read from the running container, not from the compose file. The
-          # compose file only says which image was asked for; this says which
-          # one is actually serving, and that is what a rollback must return to.
-          RUNNING=$(docker compose ps -q app 2>/dev/null || true)
-          PREVIOUS=""
-          if [ -n "$RUNNING" ]; then
-            PREVIOUS=$(docker inspect --format '{{.Config.Image}}' "$RUNNING" 2>/dev/null || true)
+          if [ "$FREE_MB" -lt 300 ]; then
+            echo "::error::Hanya ${FREE_MB} MB bebas di server, butuh minimal 300 MB."
+            echo "Bersihkan rilis lama: ssh ke server lalu 'ls -la ~/releases'"
+            exit 1
           fi
-          echo "Currently serving: ${PREVIOUS:-nothing}"
 
-          docker pull "$IMAGE"
-          APP_IMAGE="$IMAGE" docker compose up -d
+      - name: Unggah jar
+        if: steps.rel.outputs.mode == 'deploy'
+        env:
+          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
+          NAME: ${{ steps.rel.outputs.name }}
+        run: |
+          scp -i ~/.ssh/deploy_key -o BatchMode=yes \
+            loan-0.0.1-SNAPSHOT.jar "$TARGET:$RELEASES/.upload.tmp"
 
-          echo "Waiting for the new container to report healthy..."
-          for _ in $(seq 1 30); do
-            CID=$(docker compose ps -q app 2>/dev/null || true)
-            STATUS=$(docker inspect --format '{{.State.Health.Status}}' "$CID" 2>/dev/null || echo starting)
+          # Baru diberi nama final setelah unggahan utuh, sehingga scp yang
+          # terputus tidak pernah menghasilkan rilis yang rusak sebagian.
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$TARGET" \
+            "mv '$RELEASES/.upload.tmp' '$RELEASES/$NAME'"
 
-            if [ "$STATUS" = "healthy" ]; then
-              echo "Healthy. Deploy complete."
-              docker image prune -f --filter 'until=168h' >/dev/null 2>&1 || true
-              exit 0
+      - name: Tukar, restart, dan periksa kesehatan
+        env:
+          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
+          NAME: ${{ steps.rel.outputs.name }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$TARGET" \
+            "LIVE_JAR='$LIVE_JAR' RELEASES='$RELEASES' HEALTH_URL='$HEALTH_URL' \
+             KEEP_RELEASES='$KEEP_RELEASES' NAME='$NAME' bash -s" <<'REMOTE'
+          set -uo pipefail
+
+          NEW="$RELEASES/$NAME"
+          [ -f "$NEW" ] || { echo "::error::$NEW tidak ada di server"; exit 1; }
+
+          PREVIOUS=$(readlink -f "$LIVE_JAR" || true)
+          echo "Sedang melayani : ${PREVIOUS:-tidak ada}"
+          echo "Akan menjadi    : $NEW"
+
+          if [ "$PREVIOUS" = "$NEW" ]; then
+            echo "Sudah menunjuk ke rilis ini. Tetap restart agar konfigurasi terbaru terbaca."
+          fi
+
+          # ln -sfn adalah rename, jadi pertukarannya atomik: tidak ada saat
+          # ketika path itu tidak menunjuk ke jar yang sah.
+          ln -sfn "$NEW" "$LIVE_JAR"
+
+          sudo systemctl restart qudu-be.service
+
+          echo "Menunggu layanan sehat..."
+          HEALTHY=0
+          for i in $(seq 1 45); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$HEALTH_URL" || echo 000)
+            if [ "$CODE" = "200" ]; then
+              echo "Sehat setelah ${i} detik."
+              HEALTHY=1
+              break
             fi
-            [ "$STATUS" = "unhealthy" ] && break
-            sleep 10
+            sleep 1
           done
 
-          echo "::error::The new image never became healthy."
-          docker compose logs --tail 100 app || true
+          if [ "$HEALTHY" = "1" ]; then
+            # Simpan beberapa rilis terbaru untuk rollback, buang sisanya.
+            # Yang sedang aktif tidak pernah ikut terbuang.
+            ACTIVE=$(readlink -f "$LIVE_JAR")
+            ls -1t "$RELEASES"/*.jar 2>/dev/null | tail -n +$((KEEP_RELEASES + 1)) | while read -r old; do
+              [ "$(readlink -f "$old")" = "$ACTIVE" ] && continue
+              echo "Membuang rilis lama: $(basename "$old")"
+              rm -f "$old"
+            done
 
-          if [ -n "$PREVIOUS" ]; then
-            echo "Rolling back to $PREVIOUS"
-            APP_IMAGE="$PREVIOUS" docker compose up -d
+            echo
+            echo "Rilis tersimpan:"
+            ls -1t "$RELEASES"/*.jar 2>/dev/null | while read -r j; do
+              mark=" "; [ "$(readlink -f "$j")" = "$ACTIVE" ] && mark="*"
+              echo "  $mark $(basename "$j")"
+            done
+            df -h / | tail -1
+            exit 0
+          fi
+
+          echo "::error::Rilis baru tidak pernah menjadi sehat."
+          sudo journalctl -u qudu-be.service -n 60 --no-pager || true
+
+          if [ -n "$PREVIOUS" ] && [ -f "$PREVIOUS" ] && [ "$PREVIOUS" != "$NEW" ]; then
+            echo "Mengembalikan ke $PREVIOUS"
+            ln -sfn "$PREVIOUS" "$LIVE_JAR"
+            sudo systemctl restart qudu-be.service
+
+            for i in $(seq 1 45); do
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$HEALTH_URL" || echo 000)
+              [ "$CODE" = "200" ] && { echo "Rollback berhasil, layanan pulih."; break; }
+              sleep 1
+            done
           else
-            echo "Nothing was running before this, so there is nothing to roll back to."
+            echo "::error::Tidak ada rilis sebelumnya yang bisa dikembalikan. Server sedang TIDAK melayani."
           fi
 
           exit 1
           REMOTE
 
-      - name: Remove the deploy key
+      - name: Buktikan dari internet publik
+        if: success()
+        run: |
+          for i in $(seq 1 10); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+                   https://api.profilku.site/api/plafonds/catalog || echo 000)
+            if [ "$CODE" = "200" ]; then
+              echo "https://api.profilku.site menjawab 200."
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Sehat di localhost tetapi tidak terjangkau dari luar. Periksa nginx atau security group."
+          exit 1
+
+      - name: Ringkasan
+        if: always()
+        run: |
+          {
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Mode | ${{ steps.rel.outputs.mode }} |"
+            echo "| Rilis | \`${{ steps.rel.outputs.name }}\` |"
+            echo "| Commit | \`${GITHUB_SHA::12}\` |"
+            echo "| Hasil | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Hapus kunci deploy
         if: always()
         run: rm -f ~/.ssh/deploy_key

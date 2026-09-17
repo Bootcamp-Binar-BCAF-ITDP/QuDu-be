@@ -1,8 +1,9 @@
 name: CI
 
+# Tidak berjalan pada push ke main. Deploy.yml sudah menjalankan test yang sama
+# di sana dan hanya menayangkan kalau hijau, jadi memasang pemicu push di sini
+# hanya membuat suite berjalan dua kali untuk setiap commit.
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -53,13 +54,10 @@ jobs:
         run: |
           CSV=target/site/jacoco/jacoco.csv
           [ -f "$CSV" ] || exit 0
-          awk -F, 'NR>1 {im+=$4; ic+=$5; bm+=$6; bc+=$7}
-               END {
-                 printf "| Counter | Covered | Total | %% |
-|---|---|---|---|
-"
-                 printf "| Instructions | %d | %d | %.1f%% |
-", ic, ic+im, 100*ic/(ic+im)
-                 printf "| Branches | %d | %d | %.1f%% |
-", bc, bc+bm, 100*bc/(bc+bm)
-               }' "$CSV" >> "$GITHUB_STEP_SUMMARY"
+          awk -F, 'NR>1 { im+=$4; ic+=$5; bm+=$6; bc+=$7 }
+                   END {
+                     printf "| Counter | Covered | Total | %% |\n"
+                     printf "|---|---|---|---|\n"
+                     printf "| Instructions | %d | %d | %.1f%% |\n", ic, ic+im, (ic+im) ? 100*ic/(ic+im) : 0
+                     printf "| Branches | %d | %d | %.1f%% |\n", bc, bc+bm, (bc+bm) ? 100*bc/(bc+bm) : 0
+                   }' "$CSV" >> "$GITHUB_STEP_SUMMARY"
