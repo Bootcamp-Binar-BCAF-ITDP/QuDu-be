@@ -1,0 +1,335 @@
+name: Deploy GCP
+
+# Setiap push ke main yang lolos test langsung tayang ke VM Google Cloud.
+#
+#   test  ->  image (dibangun di runner, di-push ke GHCR)  ->  deploy (VM menarik image)
+#
+# VM tidak pernah mem-build apa pun dan tidak perlu clone repo: workflow ini
+# mengunggah docker-compose.yml, docker-compose.gcp.yml, .env (dirakit dari
+# GitHub Secrets), dan scripts/gcp-deploy.sh, lalu skrip itu yang bekerja di VM:
+# pasang Docker kalau belum ada, nyalakan PostgreSQL, restore dump SEKALI saja
+# selama database masih kosong, tukar container aplikasi, rollback kalau gagal.
+#
+# Ini target yang BERBEDA dari deploy.yml (EC2, systemd). Lihat DEPLOY-GCP.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Rollback: tag image yang sudah ada di GHCR (12 karakter awal SHA commit). Kosongkan untuk membangun commit ini.'
+        required: false
+        type: string
+
+# Satu deploy pada satu waktu, dan jangan membatalkan yang sedang jalan: restore
+# database atau pertukaran container yang terpotong di tengah meninggalkan VM
+# setengah jadi. Grup ini sengaja beda dari deploy.yml agar keduanya tidak
+# saling menunggu.
+concurrency:
+  group: deploy-gcp
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DEPLOY_DIR: /opt/qudu-be
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    if: github.event.inputs.image_tag == ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # verify, bukan package: gerbang coverage JaCoCo ikut menghentikan deploy.
+      # LoanApplicationTests butuh PostgreSQL sungguhan, jadi dilewati.
+      - name: Test dan gerbang coverage
+        run: |
+          chmod +x ./mvnw
+          ./mvnw -B verify -Dtest='!LoanApplicationTests'
+
+      - name: Laporan test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  image:
+    name: Bangun dan push image
+    runs-on: ubuntu-latest
+    needs: test
+
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Nama image di GHCR wajib huruf kecil; nama repo org ini tidak.
+      - name: Tentukan nama image
+        id: meta
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "image=$repo:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # .dockerignore mengeluarkan application.properties dan kredensial
+      # Firebase, jadi image ini tidak membawa secret apa pun. Semua konfigurasi
+      # datang dari .env di VM.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ${{ steps.meta.outputs.repo }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Tayangkan ke VM GCP
+    runs-on: ubuntu-latest
+    needs: image
+    if: always() && (needs.image.result == 'success' || github.event.inputs.image_tag != '')
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tentukan image
+        id: rel
+        env:
+          ROLLBACK_TAG: ${{ github.event.inputs.image_tag }}
+          BUILT_IMAGE: ${{ needs.image.outputs.image }}
+        run: |
+          if [ -n "$ROLLBACK_TAG" ]; then
+            if [[ ! "$ROLLBACK_TAG" =~ ^[0-9a-f]{7,40}$ ]]; then
+              echo "::error::image_tag harus SHA commit (heksadesimal), bukan '$ROLLBACK_TAG'."
+              exit 1
+            fi
+            image="ghcr.io/${GITHUB_REPOSITORY,,}:$ROLLBACK_TAG"
+            echo "Rollback ke $image"
+          else
+            image="$BUILT_IMAGE"
+            echo "Deploy $image"
+          fi
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      # Merakit .env dari Secrets (rahasia) dan Variables (bukan rahasia, ada
+      # default). Nilai dibungkus kutip tunggal agar compose tidak menafsirkan
+      # "$" di dalam password; karena itu nilai tidak boleh berisi kutip tunggal
+      # atau baris baru. Secret dibaca lewat env, tidak pernah disisipkan ke skrip.
+      - name: Rakit .env dari GitHub Secrets
+        env:
+          GCP_HOST: ${{ secrets.GCP_HOST }}
+          GCP_USER: ${{ secrets.GCP_USER }}
+          GCP_SSH_KEY: ${{ secrets.GCP_SSH_KEY }}
+          GCP_KNOWN_HOSTS: ${{ secrets.GCP_KNOWN_HOSTS }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+
+          APP_PORT: ${{ vars.APP_PORT || '80' }}
+          CORS_ALLOWED_ORIGIN: ${{ vars.CORS_ALLOWED_ORIGIN || 'https://quick-duit.profilku.site' }}
+          FRONTEND_RESET_PASSWORD_URL: ${{ vars.FRONTEND_RESET_PASSWORD_URL || 'https://quick-duit.profilku.site/reset-password/{token}' }}
+          JWT_TTL_MINUTES: ${{ vars.JWT_TTL_MINUTES || '30' }}
+          REFRESH_TTL_DAYS: ${{ vars.REFRESH_TTL_DAYS || '7' }}
+          MAIL_HOST: ${{ vars.MAIL_HOST || 'smtp.gmail.com' }}
+          MAIL_PORT: ${{ vars.MAIL_PORT || '587' }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          API_DOCS_ENABLED: ${{ vars.API_DOCS_ENABLED || 'true' }}
+        run: |
+          missing=""
+          for name in GCP_HOST GCP_USER GCP_SSH_KEY GCP_KNOWN_HOSTS \
+                      DB_USERNAME DB_PASSWORD JWT_SECRET MAIL_USERNAME MAIL_PASSWORD; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Secret belum diisi:$missing"
+            echo "Isi di Settings > Secrets and variables > Actions > Repository secrets."
+            exit 1
+          fi
+
+          if [ "${#JWT_SECRET}" -lt 32 ]; then
+            echo "::error::JWT_SECRET minimal 32 karakter. Buat dengan: openssl rand -hex 32"
+            exit 1
+          fi
+
+          if [[ "$FRONTEND_RESET_PASSWORD_URL" != *"/{token}"* ]]; then
+            echo "::error::FRONTEND_RESET_PASSWORD_URL harus memuat {token} sebagai bagian path, mis. https://domain/reset-password/{token}"
+            exit 1
+          fi
+
+          MAIL_FROM="${MAIL_FROM:-$MAIL_USERNAME}"
+          if [ -n "$FIREBASE_CREDENTIALS_JSON" ]; then FIREBASE_ENABLED=true; else FIREBASE_ENABLED=false; fi
+
+          keys="DB_USERNAME DB_PASSWORD JWT_SECRET JWT_TTL_MINUTES REFRESH_TTL_DAYS
+                CORS_ALLOWED_ORIGIN FRONTEND_RESET_PASSWORD_URL
+                MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_FROM
+                APP_PORT API_DOCS_ENABLED FIREBASE_ENABLED"
+
+          nl=$'\n'
+          for k in $keys; do
+            v="${!k}"
+            if [[ "$v" == *"'"* || "$v" == *"$nl"* ]]; then
+              echo "::error::Nilai $k berisi kutip tunggal atau baris baru. Ganti nilainya."
+              exit 1
+            fi
+          done
+
+          umask 077
+          mkdir -p .deploy
+          {
+            echo "# Dibuat oleh .github/workflows/deploy-gcp.yml — JANGAN diedit di VM,"
+            echo "# akan ditimpa pada deploy berikutnya. Ubah GitHub Secrets/Variables."
+            for k in $keys; do printf "%s='%s'\n" "$k" "${!k}"; done
+            echo "FIREBASE_CREDENTIALS_PATH='/app/secrets/firebase-credentials.json'"
+          } > .deploy/.env
+
+          if [ "$FIREBASE_ENABLED" = true ]; then
+            printf '%s\n' "$FIREBASE_CREDENTIALS_JSON" > .deploy/firebase-credentials.json
+            jq empty .deploy/firebase-credentials.json \
+              || { echo "::error::FIREBASE_CREDENTIALS_JSON bukan JSON yang valid."; exit 1; }
+          fi
+
+          echo "Konfigurasi siap: $(echo $keys | wc -w) kunci, Firebase=$FIREBASE_ENABLED, APP_PORT=$APP_PORT"
+
+      # tr -d '\r': kunci yang disalin dari Windows membawa CRLF, dan OpenSSH
+      # menolaknya dengan "error in libcrypto" yang tidak menyebut sebabnya.
+      - name: Siapkan SSH
+        env:
+          GCP_SSH_KEY: ${{ secrets.GCP_SSH_KEY }}
+          GCP_KNOWN_HOSTS: ${{ secrets.GCP_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$GCP_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$GCP_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "::error::GCP_SSH_KEY tidak terbaca sebagai kunci privat OpenSSH."
+            if grep -q 'PuTTY-User-Key-File' ~/.ssh/deploy_key; then
+              echo "Yang tersimpan format PuTTY (.ppk). Dibutuhkan format OpenSSH."
+            elif grep -q '^ssh-' ~/.ssh/deploy_key; then
+              echo "Yang tersimpan kunci PUBLIK. Dibutuhkan pasangan privatnya."
+            else
+              echo "Baris pertama harus '-----BEGIN OPENSSH PRIVATE KEY-----'. Salin ulang utuh."
+            fi
+            exit 1
+          fi
+
+          cat > ~/.ssh/config <<EOF
+          Host vm
+            HostName ${{ secrets.GCP_HOST }}
+            User ${{ secrets.GCP_USER }}
+            IdentityFile ~/.ssh/deploy_key
+            BatchMode yes
+            ConnectTimeout 20
+            ServerAliveInterval 15
+          EOF
+
+          ssh vm 'echo "Terhubung ke $(hostname) sebagai $(id -un)"'
+
+      - name: Unggah berkas deploy
+        run: |
+          ssh vm "set -e
+            if [ ! -w '$DEPLOY_DIR' ]; then
+              sudo -n mkdir -p '$DEPLOY_DIR'
+              sudo -n chown \"\$(id -un):\" '$DEPLOY_DIR'
+            fi
+            mkdir -p '$DEPLOY_DIR/scripts' '$DEPLOY_DIR/secrets'
+            chmod 700 '$DEPLOY_DIR/secrets'"
+
+          scp -q docker-compose.yml docker-compose.gcp.yml "vm:$DEPLOY_DIR/"
+          scp -q scripts/gcp-deploy.sh scripts/install-docker-debian.sh "vm:$DEPLOY_DIR/scripts/"
+
+          # Nama sementara dulu, baru di-rename: .env yang terunggah setengah
+          # tidak pernah terbaca compose.
+          scp -q .deploy/.env "vm:$DEPLOY_DIR/.env.upload"
+          ssh vm "chmod 600 '$DEPLOY_DIR/.env.upload' && mv '$DEPLOY_DIR/.env.upload' '$DEPLOY_DIR/.env'"
+
+          if [ -f .deploy/firebase-credentials.json ]; then
+            scp -q .deploy/firebase-credentials.json "vm:$DEPLOY_DIR/secrets/.firebase-credentials.upload"
+          fi
+
+      # Token GHCR lewat stdin, bukan argumen, agar tidak terlihat di `ps` VM.
+      - name: Jalankan deploy di VM
+        env:
+          IMAGE: ${{ steps.rel.outputs.image }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ALLOW_EMPTY_DB: ${{ vars.ALLOW_EMPTY_DB || 'false' }}
+        run: |
+          printf '%s\n' "$GHCR_TOKEN" | ssh vm \
+            "ALLOW_EMPTY_DB='$ALLOW_EMPTY_DB' bash '$DEPLOY_DIR/scripts/gcp-deploy.sh' '$IMAGE' '${{ github.actor }}'"
+
+      - name: Buktikan dari internet publik
+        env:
+          GCP_HOST: ${{ secrets.GCP_HOST }}
+          APP_PORT: ${{ vars.APP_PORT || '80' }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+        run: |
+          base="$PUBLIC_BASE_URL"
+          if [ -z "$base" ]; then
+            case "$APP_PORT" in
+              80) base="http://$GCP_HOST" ;;
+              *[!0-9]*) echo "APP_PORT=$APP_PORT tidak publik dan PUBLIC_BASE_URL kosong; pemeriksaan dari luar dilewati."; exit 0 ;;
+              *) base="http://$GCP_HOST:$APP_PORT" ;;
+            esac
+          fi
+          url="${base%/}/api/plafonds/catalog"
+
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "$url menjawab 200."
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau dari luar (kode $code). Periksa firewall GCP untuk port $APP_PORT."
+          exit 1
+
+      - name: Ringkasan
+        if: always()
+        run: |
+          {
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${{ steps.rel.outputs.image }}\` |"
+            echo "| Commit | \`${GITHUB_SHA::12}\` |"
+            echo "| Hasil | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Hapus kunci dan konfigurasi
+        if: always()
+        run: rm -rf ~/.ssh/deploy_key .deploy

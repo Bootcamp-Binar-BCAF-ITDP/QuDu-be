@@ -1,8 +1,5 @@
 name: CI
 
-# Tidak berjalan pada push ke main. Deploy.yml sudah menjalankan test yang sama
-# di sana dan hanya menayangkan kalau hijau, jadi memasang pemicu push di sini
-# hanya membuat suite berjalan dua kali untuk setiap commit.
 on:
   pull_request:
   workflow_dispatch:
@@ -26,12 +23,6 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # verify, not test: that is the phase the JaCoCo coverage gate runs in.
-      #
-      # chmod first: the repo is authored on Windows, where git does not record
-      # the executable bit, so a fresh checkout can hand the runner an mvnw it
-      # cannot run. The bit is set in the index now, and this keeps the build
-      # green if it is ever lost again.
       - name: Run tests and the coverage gate
         run: |
           chmod +x ./mvnw

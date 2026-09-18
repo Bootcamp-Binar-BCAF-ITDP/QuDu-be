@@ -1,16 +1,5 @@
 name: Deploy
 
-# Setiap push ke main yang lolos test langsung tayang ke server.
-#
-# Jar dibangun di runner GitHub, bukan di server. Server hanya punya RAM 908 MB
-# dan disk yang sempit; membangun Maven di sana lambat dan pernah membuat disk
-# nyaris penuh. Runner punya 16 GB RAM, gratis, dan sudah menjalankan test.
-#
-# Server TIDAK memakai Docker. Aplikasi berjalan lewat systemd sebagai
-# qudu-be.service dengan PostgreSQL native di host. Jangan pernah menjalankan
-# docker compose di sana: itu akan menyalakan database kedua yang kosong dan
-# membuat data asli berhenti terbaca. Lihat DEPLOY.md.
-
 on:
   push:
     branches: [main]

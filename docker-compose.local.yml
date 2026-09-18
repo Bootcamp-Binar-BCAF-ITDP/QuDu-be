@@ -1,0 +1,48 @@
+# Local test stack: the backend from docker-compose.yml plus its own PostgreSQL.
+#
+# Never used on a server. The GCP VM runs docker-compose.yml alone against a
+# database set up separately. Start this through the script, which also creates
+# .env.local:
+#
+#   bash scripts/docker-local.sh up
+#
+# or by hand:
+#
+#   ENV_FILE=.env.local docker compose --env-file .env.local \
+#       -f docker-compose.yml -f docker-compose.local.yml up -d --build
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: qudu-be-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-qudu2}
+      POSTGRES_USER: ${DB_USERNAME:?DB_USERNAME must be set in .env.local}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env.local}
+    # 5433, not 5432: the native PostgreSQL on this laptop already holds 5432.
+    # Bound to 127.0.0.1 so only this machine (DBeaver, psql) can reach it.
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-5433}:5432"
+    # PostgreSQL 18 images keep their data under /var/lib/postgresql/18/docker;
+    # the volume goes on the parent, not on the old .../data path.
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+
+  app:
+    depends_on:
+      db:
+        condition: service_healthy
+    # Overrides whatever DB_URL .env.local carries: inside the compose network
+    # the database is simply "db".
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-qudu2}
+
+volumes:
+  pgdata:

@@ -1,35 +1,40 @@
-services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+name: qudu-be
 
+services:
   app:
-    image: ${APP_IMAGE:-ghcr.io/bootcamp-binar-bcaf-itdp/qudu-be:latest}
+    image: ${APP_IMAGE:-qudu-be:local}
     build:
       context: .
+    container_name: qudu-be
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
+
+    # .env on the server. The local stack (scripts/docker-local.sh) points this at
+    # .env.local, so testing on a laptop never touches the real settings.
     env_file:
-      - .env
+      - ${ENV_FILE:-.env}
+
+    environment:
+      UPLOAD_ROOT: /app/uploads
+
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:8080"
+
     volumes:
       - uploads:/app/uploads
       - ./secrets:/app/secrets:ro
 
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/plafonds/catalog > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
-  db-data:
   uploads:

@@ -1,0 +1,49 @@
+# GCP VM stack: the backend from docker-compose.yml plus its own PostgreSQL.
+#
+# Used by .github/workflows/deploy-gcp.yml through scripts/gcp-deploy.sh, which
+# also restores the seed dump into this database exactly once. By hand:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gcp.yml ps
+#
+# The database lives in the named volume "qudu-be_pgdata". `docker compose down`
+# keeps it; `down -v` DELETES every loan record — never use -v here.
+
+services:
+  db:
+    # Must be 18 or newer: the seed dump was taken with pg_dump 18.4, and
+    # pg_restore refuses archives from a newer server than itself.
+    image: postgres:18-alpine
+    container_name: qudu-be-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: qudu2
+      # Read only when the volume is first initialised. Changing DB_PASSWORD in
+      # GitHub later does NOT change it in the database — see DEPLOY-GCP.md.
+      POSTGRES_USER: ${DB_USERNAME:?DB_USERNAME must be set in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    # Loopback only, for psql or a DBeaver SSH tunnel from the VM itself. The
+    # app reaches the database over the compose network, not through this port.
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-5432}:5432"
+    # PostgreSQL 18 images keep their data under /var/lib/postgresql/18/docker;
+    # the volume goes on the parent, not on the old .../data path.
+    volumes:
+      - pgdata:/var/lib/postgresql
+    # -h 127.0.0.1 on purpose: during first-time init the image runs a temporary
+    # server on the unix socket only, which a socket check would call "ready".
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d qudu2"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+
+  app:
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/qudu2
+
+volumes:
+  pgdata:

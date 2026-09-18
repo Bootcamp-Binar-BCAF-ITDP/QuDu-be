@@ -32,14 +32,51 @@ build/
 ### VS Code ###
 .vscode/
 
+### OS / editor leftovers ###
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.bak
+*.orig
+*.log
+logs/
 
-/uploads/
-
-firebase-credentials.json
+### Secrets — never commit ###
+# NOTE: .gitignore does not untrack a file already in git. application.properties
+# is STILL tracked (with a live Gmail app password in history) until someone runs
+# `git rm --cached` on it — which also removes it from the jar deploy.yml builds
+# for EC2. The Docker/GCP image never uses it (.dockerignore + profile "docker").
 src/main/resources/application.properties
+src/main/resources/application-local.properties
+src/main/resources/json/
+firebase-credentials.json
+*firebase-adminsdk*.json
+google-services.json
 
 .env
-.env.local
+.env.*
 !.env.example
 /secrets/
+/.deploy/
 
+# Private keys and certificates
+*.pem
+*.key
+*.ppk
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*_deploy
+*_deploy.pub
+
+### Customer data — never commit ###
+# Uploaded KTP/loan documents.
+/uploads/
+# Database dumps and backups hold customer PII (NIK) and password hashes.
+*.dump
+*.backup
+*-dump.sql
+*.sql.gz
+uploads-*.tar.gz
