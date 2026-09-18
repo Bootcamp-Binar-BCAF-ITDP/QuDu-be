@@ -212,7 +212,7 @@ jobs:
             echo "# Dibuat oleh .github/workflows/deploy-gcp.yml — JANGAN diedit di VM,"
             echo "# akan ditimpa pada deploy berikutnya. Ubah GitHub Secrets/Variables."
             for k in $keys; do printf "%s='%s'\n" "$k" "${!k}"; done
-            echo "FIREBASE_CREDENTIALS_PATH='/app/secrets/firebase-credentials.json'"
+            echo "FIREBASE_CREDENTIALS_PATH='file:/app/secrets/firebase-credentials.json'"
           } > .deploy/.env
 
           if [ "$FIREBASE_ENABLED" = true ]; then
@@ -267,8 +267,7 @@ jobs:
               sudo -n mkdir -p '$DEPLOY_DIR'
               sudo -n chown \"\$(id -un):\" '$DEPLOY_DIR'
             fi
-            mkdir -p '$DEPLOY_DIR/scripts' '$DEPLOY_DIR/secrets'
-            chmod 700 '$DEPLOY_DIR/secrets'"
+            mkdir -p '$DEPLOY_DIR/scripts'"
 
           scp -q docker-compose.yml docker-compose.gcp.yml "vm:$DEPLOY_DIR/"
           scp -q scripts/gcp-deploy.sh scripts/install-docker-debian.sh "vm:$DEPLOY_DIR/scripts/"
@@ -278,8 +277,11 @@ jobs:
           scp -q .deploy/.env "vm:$DEPLOY_DIR/.env.upload"
           ssh vm "chmod 600 '$DEPLOY_DIR/.env.upload' && mv '$DEPLOY_DIR/.env.upload' '$DEPLOY_DIR/.env'"
 
+          # Di luar secrets/: folder itu milik uid 1001 (user di dalam container)
+          # dan tidak bisa ditulis user login. gcp-deploy.sh yang memasangnya.
           if [ -f .deploy/firebase-credentials.json ]; then
-            scp -q .deploy/firebase-credentials.json "vm:$DEPLOY_DIR/secrets/.firebase-credentials.upload"
+            scp -q .deploy/firebase-credentials.json "vm:$DEPLOY_DIR/.firebase-credentials.upload"
+            ssh vm "chmod 600 '$DEPLOY_DIR/.firebase-credentials.upload'"
           fi
 
       # Token GHCR lewat stdin, bukan argumen, agar tidak terlihat di `ps` VM.

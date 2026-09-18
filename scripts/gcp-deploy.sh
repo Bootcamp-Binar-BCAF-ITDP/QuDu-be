@@ -113,33 +113,58 @@ fi
 
 # --------------------------------------------------------------- secrets ----
 
-# The container runs as uid 1001, so a file owned by the login user with mode
-# 600 is unreadable to it. The workflow uploads to a staging name; it is
-# installed here with the right owner.
-mkdir -p secrets
-if [ -f secrets/.firebase-credentials.upload ]; then
-    say "Firebase credentials"
-    if sudo -n true 2>/dev/null; then
-        sudo -n install -o "$APP_UID" -g "$APP_UID" -m 400 \
-            secrets/.firebase-credentials.upload secrets/firebase-credentials.json
-    else
-        warn "No passwordless sudo: firebase-credentials.json is left world-readable (644) so the container can read it."
-        install -m 644 secrets/.firebase-credentials.upload secrets/firebase-credentials.json
+# compose mounts ./secrets at /app/secrets, and the app reads it as uid 1001.
+# BOTH the directory and the file must be reachable by 1001: a 700 directory
+# owned by the login user makes the file invisible inside the container, and
+# the app reports it as "not found" rather than "permission denied" (2026-09-18,
+# first GCP deploy). So the directory and file belong to 1001, and the workflow
+# uploads to a staging name outside the directory.
+UPLOAD="$DEPLOY_DIR/.firebase-credentials.upload"
+# The login user cannot look inside a 700 directory owned by 1001, so the
+# existence check below goes through sudo when there is sudo.
+HAS_FIREBASE_FILE() { test -f secrets/firebase-credentials.json; }
+say "Secrets"
+if sudo -n true 2>/dev/null; then
+    HAS_FIREBASE_FILE() { sudo -n test -f secrets/firebase-credentials.json; }
+    sudo -n mkdir -p secrets
+    sudo -n chown "$APP_UID:$APP_UID" secrets
+    sudo -n chmod 700 secrets
+    if [ -f "$UPLOAD" ]; then
+        sudo -n install -o "$APP_UID" -g "$APP_UID" -m 400 "$UPLOAD" secrets/firebase-credentials.json
+        echo "    installed secrets/firebase-credentials.json (owner $APP_UID, 400)"
     fi
-    rm -f secrets/.firebase-credentials.upload
-    echo "    installed secrets/firebase-credentials.json"
+else
+    warn "No passwordless sudo: secrets/ is left world-readable (755/644) so the container can read it."
+    mkdir -p secrets
+    chmod 755 secrets
+    if [ -f "$UPLOAD" ]; then
+        install -m 644 "$UPLOAD" secrets/firebase-credentials.json
+        echo "    installed secrets/firebase-credentials.json (644)"
+    fi
+fi
+rm -f "$UPLOAD"
+
+if grep -q "^FIREBASE_ENABLED='true'" .env && ! HAS_FIREBASE_FILE; then
+    die "FIREBASE_ENABLED=true but secrets/firebase-credentials.json is missing. Set the FIREBASE_CREDENTIALS_JSON secret, or remove it to turn push off."
 fi
 
 # -------------------------------------------------------------- database ----
 
 wait_healthy() {
-    local name="$1" timeout="$2" status="" waited=0
+    local name="$1" timeout="$2" status="" restarts=0 waited=0
     while [ "$waited" -lt "$timeout" ]; do
         status=$(dk inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$name" 2>/dev/null || echo missing)
         case "$status" in
             healthy) echo "    $name healthy after ${waited}s"; return 0 ;;
             unhealthy|exited|dead|missing) break ;;
         esac
+        # restart: unless-stopped hides a crash loop behind health "starting";
+        # a restart count above zero means the process already died once.
+        restarts=$(dk inspect -f '{{.RestartCount}}' "$name" 2>/dev/null || echo 0)
+        if [ "$restarts" -gt 0 ]; then
+            status="crashed and restarted $restarts time(s)"
+            break
+        fi
         sleep 3
         waited=$((waited + 3))
     done

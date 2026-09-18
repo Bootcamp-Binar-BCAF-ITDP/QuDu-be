@@ -96,7 +96,7 @@ ensure_env_local() {
         echo
         echo "# ---- push notifications ----"
         echo "FIREBASE_ENABLED=false"
-        echo "FIREBASE_CREDENTIALS_PATH=/app/secrets/firebase-credentials.json"
+        echo "FIREBASE_CREDENTIALS_PATH=file:/app/secrets/firebase-credentials.json"
     } > "$ENV_LOCAL"
     chmod 600 "$ENV_LOCAL" 2>/dev/null || true
 }
