@@ -45,5 +45,24 @@ services:
     environment:
       DB_URL: jdbc:postgresql://db:5432/qudu2
 
+  # Cloudflare quick tunnel: public HTTPS with no inbound port, no Cloudflare
+  # account and no domain. cloudflared dials OUT to Cloudflare, so the GCP
+  # firewall (which we cannot change) never matters.
+  #
+  # The URL is random (https://<words>.trycloudflare.com) and printed in this
+  # container's log:  docker logs qudu-be-tunnel 2>&1 | grep trycloudflare
+  # It CHANGES whenever this container restarts — recreate, crash, VM reboot.
+  #
+  # Reaches the app by service name over the compose network, not through
+  # network_mode: host + localhost:8080 — on this VM the app is published on
+  # host port 80 (APP_PORT), so localhost:8080 on the host is nothing.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: qudu-be-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://app:8080
+    depends_on:
+      - app
+
 volumes:
   pgdata:

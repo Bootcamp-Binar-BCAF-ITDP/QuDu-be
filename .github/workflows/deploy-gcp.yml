@@ -285,22 +285,39 @@ jobs:
           fi
 
       # Token GHCR lewat stdin, bukan argumen, agar tidak terlihat di `ps` VM.
+      # Keluaran disalin ke log supaya baris PUBLIC_URL= / TUNNEL_MODE= dari
+      # skrip bisa dipakai langkah berikutnya.
       - name: Jalankan deploy di VM
+        id: deploy
         env:
           IMAGE: ${{ steps.rel.outputs.image }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ALLOW_EMPTY_DB: ${{ vars.ALLOW_EMPTY_DB || 'false' }}
+          CLOUDFLARE_TUNNEL: ${{ vars.CLOUDFLARE_TUNNEL || 'on' }}
         run: |
+          set -o pipefail
           printf '%s\n' "$GHCR_TOKEN" | ssh vm \
-            "ALLOW_EMPTY_DB='$ALLOW_EMPTY_DB' bash '$DEPLOY_DIR/scripts/gcp-deploy.sh' '$IMAGE' '${{ github.actor }}'"
+            "ALLOW_EMPTY_DB='$ALLOW_EMPTY_DB' CLOUDFLARE_TUNNEL='$CLOUDFLARE_TUNNEL' bash '$DEPLOY_DIR/scripts/gcp-deploy.sh' '$IMAGE' '${{ github.actor }}'" \
+            | tee .deploy/deploy.log
 
+          echo "tunnel_url=$(sed -n 's/^PUBLIC_URL=//p' .deploy/deploy.log | tail -1)" >> "$GITHUB_OUTPUT"
+          echo "tunnel_mode=$(sed -n 's/^TUNNEL_MODE=//p' .deploy/deploy.log | tail -1)" >> "$GITHUB_OUTPUT"
+
+      # Urutan sumber URL: variable PUBLIC_BASE_URL (kalau nanti ada domain),
+      # lalu URL Cloudflare tunnel dari skrip, lalu IP:port langsung.
       - name: Buktikan dari internet publik
         env:
           GCP_HOST: ${{ secrets.GCP_HOST }}
           APP_PORT: ${{ vars.APP_PORT || '80' }}
           PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+          TUNNEL_URL: ${{ steps.deploy.outputs.tunnel_url }}
+          TUNNEL_MODE: ${{ steps.deploy.outputs.tunnel_mode }}
         run: |
-          base="$PUBLIC_BASE_URL"
+          base="${PUBLIC_BASE_URL:-$TUNNEL_URL}"
+          if [ -z "$base" ] && [ "$TUNNEL_MODE" = "quick" ]; then
+            echo "::error::Cloudflare tunnel jalan tetapi tidak memberi URL. Lihat bagian 'Cloudflare Tunnel' di log langkah sebelumnya."
+            exit 1
+          fi
           if [ -z "$base" ]; then
             case "$APP_PORT" in
               80) base="http://$GCP_HOST" ;;
@@ -320,7 +337,11 @@ jobs:
             fi
             sleep 3
           done
-          echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau dari luar (kode $code). Kode 000 = koneksi tidak tersambung: buka port $APP_PORT di firewall GCP. Aturan bawaan default-allow-http hanya berlaku untuk VM ber-tag http-server (VM > Edit > Allow HTTP traffic)."
+          if [ -n "$TUNNEL_URL$PUBLIC_BASE_URL" ]; then
+            echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau (kode $code). Periksa bagian 'Cloudflare Tunnel' di log langkah sebelumnya. URL trycloudflare baru kadang butuh beberapa detik lagi; coba Re-run."
+          else
+            echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau dari luar (kode $code). Kode 000 = port $APP_PORT tertutup di firewall GCP. Nyalakan lagi tunnel (hapus variable CLOUDFLARE_TUNNEL atau isi 'on')."
+          fi
           exit 1
 
       - name: Ringkasan
@@ -331,6 +352,8 @@ jobs:
             echo "|---|---|"
             echo "| Image | \`${{ steps.rel.outputs.image }}\` |"
             echo "| Commit | \`${GITHUB_SHA::12}\` |"
+            echo "| Tunnel | ${{ steps.deploy.outputs.tunnel_mode || '-' }} |"
+            echo "| URL publik | ${{ vars.PUBLIC_BASE_URL || steps.deploy.outputs.tunnel_url || '-' }} |"
             echo "| Hasil | ${{ job.status }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 

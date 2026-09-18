@@ -20,6 +20,10 @@
 #   SEED_FILE        dump to restore on first deploy (default ~/qudu2-dump.sql)
 #   ALLOW_EMPTY_DB   true = start on an empty database when no dump is present
 #   HEALTH_TIMEOUT   seconds to wait for the app to turn healthy (default 240)
+#   CLOUDFLARE_TUNNEL  on (default): Cloudflare quick tunnel; off: none
+#
+# Prints PUBLIC_URL=<url> and TUNNEL_MODE=<quick|off> lines for the workflow's
+# reachability check.
 
 # `sh script.sh` on Debian is dash; everything below needs bash.
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -34,6 +38,7 @@ REGISTRY_USER="${2:-}"
 DEPLOY_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SEED_FILE="${SEED_FILE:-$HOME/qudu2-dump.sql}"
 ALLOW_EMPTY_DB="${ALLOW_EMPTY_DB:-false}"
+CLOUDFLARE_TUNNEL="${CLOUDFLARE_TUNNEL:-on}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-240}"
 
 CURRENT_FILE="$DEPLOY_DIR/.image-current"
@@ -239,6 +244,47 @@ else
     die "The database is empty and there is no dump at $SEED_FILE. Upload it once from the laptop: scp qudu2-dump.sql $(id -un)@<vm-ip>:~/  — then re-run the workflow. (Or set the repository variable ALLOW_EMPTY_DB=true to start empty on purpose.)"
 fi
 
+# ---------------------------------------------------------------- tunnel ----
+
+# Runs after the app is healthy. A tunnel that fails to connect only warns:
+# the app itself is deployed, and the workflow's public check reports it.
+start_tunnel() {
+    say "Cloudflare Tunnel"
+
+    # Left over from the short-lived two-mode version (2026-09-18).
+    dk rm -f qudu-be-tunnel-quick >/dev/null 2>&1 || true
+
+    if [ "$CLOUDFLARE_TUNNEL" = "off" ]; then
+        compose "$IMAGE" rm -sf tunnel >/dev/null 2>&1 || true
+        echo "    off"
+        echo "TUNNEL_MODE=off"
+        return 0
+    fi
+
+    # Not recreated when nothing about it changed, so the URL survives an
+    # ordinary app deploy.
+    compose "$IMAGE" up -d --no-build tunnel
+
+    local i url=""
+    for i in $(seq 1 20); do
+        # A restarted cloudflared gets a NEW url; the last one in the log is live.
+        url=$(dk logs qudu-be-tunnel 2>&1 | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1 || true)
+        [ -n "$url" ] && break
+        sleep 2
+    done
+
+    echo "TUNNEL_MODE=quick"
+    if [ -z "$url" ]; then
+        dk logs --tail 30 qudu-be-tunnel 2>&1 || true
+        warn "Cloudflare tunnel produced no URL within 40s."
+        return 0
+    fi
+
+    echo "    $url"
+    echo "    (changes whenever the tunnel container restarts or the VM reboots)"
+    echo "PUBLIC_URL=$url"
+}
+
 # ------------------------------------------------------------------- app ----
 
 say "Application"
@@ -262,6 +308,8 @@ if wait_healthy "$APP_CONTAINER" "$HEALTH_TIMEOUT"; then
         dk rmi "$old" >/dev/null 2>&1 || true
     done
     dk image prune -f >/dev/null 2>&1 || true
+
+    start_tunnel
 
     say "Deployed $IMAGE"
     compose "$IMAGE" ps
