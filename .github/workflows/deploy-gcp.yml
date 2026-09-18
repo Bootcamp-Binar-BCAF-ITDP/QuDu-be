@@ -311,14 +311,16 @@ jobs:
           url="${base%/}/api/plafonds/catalog"
 
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || echo 000)
+            # curl sudah mencetak 000 sendiri saat gagal terhubung; `|| echo 000`
+            # di sini dulu menghasilkan "000000".
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url") || true
             if [ "$code" = "200" ]; then
               echo "$url menjawab 200."
               exit 0
             fi
             sleep 3
           done
-          echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau dari luar (kode $code). Periksa firewall GCP untuk port $APP_PORT."
+          echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau dari luar (kode $code). Kode 000 = koneksi tidak tersambung: buka port $APP_PORT di firewall GCP. Aturan bawaan default-allow-http hanya berlaku untuk VM ber-tag http-server (VM > Edit > Allow HTTP traffic)."
           exit 1
 
       - name: Ringkasan
