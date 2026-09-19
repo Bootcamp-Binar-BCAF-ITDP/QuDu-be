@@ -1,32 +1,51 @@
-name: Deploy
+name: Deploy AWS
+
+# Setiap push ke main yang lolos test tayang ke EC2 (https://api.profilku.site),
+# dijalankan dengan Docker sejak 2026-09-19:
+#
+#   test  ->  image (dibangun di runner, di-push ke GHCR)  ->  deploy (EC2 menarik image)
+#
+# EC2 tidak pernah mem-build apa pun. Workflow ini mengunggah docker-compose.yml,
+# docker-compose.aws.yml, dan scripts/aws-deploy.sh ke /opt/qudu-be, lalu skrip
+# itu yang bekerja: tarik image, nyalakan PostgreSQL di container, tukar
+# container aplikasi, rollback kalau gagal. nginx + certbot tetap di host dan
+# meneruskan ke 127.0.0.1:8080.
+#
+# Konfigurasi (.env) MILIK SERVER, tidak dikirim dari GitHub: dibuat sekali dari
+# /etc/qudu-be.env saat migrasi, dan diedit langsung di /opt/qudu-be/.env.
+# Karena itu workflow ini hanya butuh empat secret EC2_*.
+#
+# Target lain (VM GCP) ada di deploy-gcp.yml. Panduan: DEPLOY.md.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
-      release:
-        description: 'Nama berkas jar di ~/releases untuk di-rollback, mis. a1b2c3d4e5f6.jar. Kosongkan untuk membangun commit ini.'
+      image_tag:
+        description: 'Rollback: tag image yang sudah ada di GHCR (12 karakter awal SHA commit). Kosongkan untuk membangun commit ini.'
         required: false
         type: string
 
-# Satu deploy pada satu waktu, dan jangan pernah membatalkan yang sedang jalan:
-# membatalkan di tengah pertukaran symlink meninggalkan server setengah jadi.
+# Satu deploy pada satu waktu, dan jangan membatalkan yang sedang jalan:
+# pertukaran container yang terpotong meninggalkan server setengah jadi.
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  packages: write
+
 env:
-  LIVE_JAR: /home/ubuntu/app/target/loan-0.0.1-SNAPSHOT.jar
-  RELEASES: /home/ubuntu/releases
-  HEALTH_URL: http://127.0.0.1:8080/api/plafonds/catalog
-  KEEP_RELEASES: 3
+  DEPLOY_DIR: /opt/qudu-be
+  PUBLIC_URL: https://api.profilku.site/api/plafonds/catalog
 
 jobs:
-  build:
-    name: Test dan bangun jar
+  test:
+    name: Test
     runs-on: ubuntu-latest
-    if: github.event.inputs.release == ''
+    if: github.event.inputs.image_tag == ''
 
     steps:
       - uses: actions/checkout@v4
@@ -38,16 +57,9 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # verify, bukan package: itu fase tempat gerbang coverage JaCoCo berjalan,
-      # jadi penurunan coverage menghentikan deploy sama seperti test yang gagal.
-      #
-      # LoanApplicationTests adalah @SpringBootTest bawaan yang butuh PostgreSQL
-      # sungguhan. Sisanya Mockito murni.
-      #
-      # chmod dulu: repo ini ditulis dari Windows, tempat git tidak merekam bit
-      # executable, sehingga checkout bisa memberi runner mvnw yang tidak bisa
-      # dijalankan. Bit-nya sudah disetel di index; baris ini jaring pengaman
-      # kalau suatu saat hilang lagi.
+      # verify, bukan package: gerbang coverage JaCoCo ikut menghentikan deploy.
+      # LoanApplicationTests butuh PostgreSQL sungguhan, jadi dilewati.
+      # chmod: git di Windows tidak merekam bit executable.
       - name: Test dan gerbang coverage
         run: |
           chmod +x ./mvnw
@@ -57,31 +69,68 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports
+          name: surefire-reports-aws
           path: target/surefire-reports/
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Simpan jar untuk job deploy
-        uses: actions/upload-artifact@v4
+  image:
+    name: Bangun dan push image
+    runs-on: ubuntu-latest
+    needs: test
+
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Nama image di GHCR wajib huruf kecil; nama repo org ini tidak.
+      - name: Tentukan nama image
+        id: meta
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "image=$repo:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
         with:
-          name: app-jar
-          path: target/loan-0.0.1-SNAPSHOT.jar
-          retention-days: 7
-          if-no-files-found: error
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Image yang sama persis dengan yang dibangun deploy-gcp.yml untuk commit
+      # ini (tag = SHA). .dockerignore mengeluarkan application.properties dan
+      # kredensial Firebase, jadi image tidak membawa secret apa pun.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ${{ steps.meta.outputs.repo }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   deploy:
-    name: Tayangkan ke server
+    name: Tayangkan ke EC2
     runs-on: ubuntu-latest
-    needs: build
-    if: always() && (needs.build.result == 'success' || github.event.inputs.release != '')
+    needs: image
+    if: always() && (needs.image.result == 'success' || github.event.inputs.image_tag != '')
 
     environment: production
 
+    permissions:
+      contents: read
+      packages: read
+
     steps:
+      - uses: actions/checkout@v4
+
       # Tanpa ini, secret yang belum diisi baru ketahuan saat ssh dipanggil
-      # dengan tujuan "@" dan yang muncul hanyalah layar bantuan ssh dan
-      # exit 255 — tidak menyebut satu pun nama secret yang hilang.
+      # dengan tujuan "@" dan yang muncul hanyalah layar bantuan ssh, exit 255.
       - name: Pastikan secret deploy sudah terisi
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
@@ -93,43 +142,39 @@ jobs:
           for name in EC2_HOST EC2_USER EC2_SSH_KEY EC2_KNOWN_HOSTS; do
             [ -n "${!name}" ] || missing="$missing $name"
           done
-
           if [ -n "$missing" ]; then
             echo "::error::Secret deploy belum terisi:$missing"
-            echo "Isi di Settings > Secrets and variables > Actions."
-            echo "Job ini berjalan di environment 'production', jadi environment secret"
-            echo "harus berada di environment yang namanya persis 'production'."
-            echo "Repository secret juga terbaca dan biasanya lebih sederhana."
+            echo "Isi di Settings > Secrets and variables > Actions. Job ini berjalan di"
+            echo "environment 'production'; repository secret juga terbaca."
             exit 1
           fi
 
-          echo "Empat secret deploy tersedia."
-
-      - name: Tentukan rilis
+      - name: Tentukan image
         id: rel
+        env:
+          ROLLBACK_TAG: ${{ github.event.inputs.image_tag }}
+          BUILT_IMAGE: ${{ needs.image.outputs.image }}
         run: |
-          if [ -n "${{ github.event.inputs.release }}" ]; then
-            echo "name=${{ github.event.inputs.release }}" >> "$GITHUB_OUTPUT"
-            echo "mode=rollback" >> "$GITHUB_OUTPUT"
-            echo "Rollback ke ${{ github.event.inputs.release }}"
+          if [ -n "$ROLLBACK_TAG" ]; then
+            if [[ ! "$ROLLBACK_TAG" =~ ^[0-9a-f]{7,40}$ ]]; then
+              echo "::error::image_tag harus SHA commit (heksadesimal), bukan '$ROLLBACK_TAG'."
+              exit 1
+            fi
+            image="ghcr.io/${GITHUB_REPOSITORY,,}:$ROLLBACK_TAG"
+            echo "Rollback ke $image"
           else
-            echo "name=${GITHUB_SHA::12}.jar" >> "$GITHUB_OUTPUT"
-            echo "mode=deploy" >> "$GITHUB_OUTPUT"
-            echo "Deploy ${GITHUB_SHA::12}.jar"
+            image="$BUILT_IMAGE"
+            echo "Deploy $image"
           fi
+          echo "image=$image" >> "$GITHUB_OUTPUT"
 
-      - name: Ambil jar
-        if: steps.rel.outputs.mode == 'deploy'
-        uses: actions/download-artifact@v4
-        with:
-          name: app-jar
-
-      # tr -d '\r': kunci yang disalin dari Windows membawa akhir baris CRLF,
-      # dan OpenSSH menolaknya dengan "error in libcrypto" yang tidak menyebut
-      # sebabnya. Secret dilewatkan lewat env, bukan disisipkan ke skrip, agar
-      # isinya tidak pernah ditafsirkan shell.
+      # tr -d '\r': kunci yang disalin dari Windows membawa CRLF, dan OpenSSH
+      # menolaknya dengan "error in libcrypto" yang tidak menyebut sebabnya.
+      # Secret dibaca lewat env, tidak pernah disisipkan ke skrip.
       - name: Siapkan SSH
         env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
         run: |
@@ -139,157 +184,65 @@ jobs:
           printf '%s\n' "$EC2_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-          if ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
-            echo "Kunci deploy terbaca."
-            exit 0
-          fi
-
-          echo "::error::EC2_SSH_KEY tidak bisa dibaca sebagai kunci privat OpenSSH."
-
-          first=$(head -n 1 ~/.ssh/deploy_key)
-          last=$(grep -v '^$' ~/.ssh/deploy_key | tail -n 1)
-
-          if grep -q 'PuTTY-User-Key-File' ~/.ssh/deploy_key; then
-            echo "Yang tersimpan adalah kunci format PuTTY (.ppk). Runner butuh format OpenSSH."
-          elif grep -q '^ssh-' ~/.ssh/deploy_key; then
-            echo "Yang tersimpan adalah kunci PUBLIK. Yang dibutuhkan pasangan privatnya."
-          elif [ "$first" != "-----BEGIN OPENSSH PRIVATE KEY-----" ]; then
-            echo "Baris pertama bukan '-----BEGIN OPENSSH PRIVATE KEY-----'."
-            echo "Kemungkinan ada spasi, teks lain, atau baris yang terpotong di awal."
-          elif [ "$last" != "-----END OPENSSH PRIVATE KEY-----" ]; then
-            echo "Baris terakhir bukan '-----END OPENSSH PRIVATE KEY-----'."
-            echo "Kemungkinan salinannya terpotong."
-          else
-            echo "Kepala dan ekornya benar, tapi isinya rusak saat disalin."
-            echo "Salin ulang langsung ke clipboard, jangan dari jendela terminal."
-          fi
-
-          echo "Jumlah baris yang tersimpan: $(wc -l < ~/.ssh/deploy_key)"
-          exit 1
-
-      # Gagal lebih awal dengan pesan jelas, bukan gagal di tengah scp dengan
-      # disk penuh dan server dalam keadaan setengah jadi.
-      - name: Periksa ruang disk server
-        env:
-          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
-        run: |
-          FREE=$(ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$TARGET" \
-                 "df -Pk / | awk 'NR==2 {print \$4}'")
-          FREE_MB=$((FREE / 1024))
-          echo "Ruang bebas di server: ${FREE_MB} MB"
-
-          if [ "$FREE_MB" -lt 300 ]; then
-            echo "::error::Hanya ${FREE_MB} MB bebas di server, butuh minimal 300 MB."
-            echo "Bersihkan rilis lama: ssh ke server lalu 'ls -la ~/releases'"
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "::error::EC2_SSH_KEY tidak terbaca sebagai kunci privat OpenSSH."
+            if grep -q 'PuTTY-User-Key-File' ~/.ssh/deploy_key; then
+              echo "Yang tersimpan format PuTTY (.ppk). Dibutuhkan format OpenSSH."
+            elif grep -q '^ssh-' ~/.ssh/deploy_key; then
+              echo "Yang tersimpan kunci PUBLIK. Dibutuhkan pasangan privatnya."
+            elif [ "$(head -n 1 ~/.ssh/deploy_key)" != "-----BEGIN OPENSSH PRIVATE KEY-----" ]; then
+              echo "Baris pertama harus '-----BEGIN OPENSSH PRIVATE KEY-----'."
+            else
+              echo "Kepala benar tapi isinya terpotong atau rusak saat disalin. Salin ulang utuh."
+            fi
             exit 1
           fi
 
-      - name: Unggah jar
-        if: steps.rel.outputs.mode == 'deploy'
-        env:
-          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
-          NAME: ${{ steps.rel.outputs.name }}
+          {
+            echo "Host server"
+            echo "  HostName $EC2_HOST"
+            echo "  User $EC2_USER"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  BatchMode yes"
+            echo "  ConnectTimeout 20"
+            echo "  ServerAliveInterval 15"
+          } > ~/.ssh/config
+
+          ssh server 'echo "Terhubung ke $(hostname) sebagai $(id -un)"'
+
+      - name: Unggah berkas deploy
         run: |
-          scp -i ~/.ssh/deploy_key -o BatchMode=yes \
-            loan-0.0.1-SNAPSHOT.jar "$TARGET:$RELEASES/.upload.tmp"
-
-          # Baru diberi nama final setelah unggahan utuh, sehingga scp yang
-          # terputus tidak pernah menghasilkan rilis yang rusak sebagian.
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$TARGET" \
-            "mv '$RELEASES/.upload.tmp' '$RELEASES/$NAME'"
-
-      - name: Tukar, restart, dan periksa kesehatan
-        env:
-          TARGET: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}
-          NAME: ${{ steps.rel.outputs.name }}
-        run: |
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$TARGET" \
-            "LIVE_JAR='$LIVE_JAR' RELEASES='$RELEASES' HEALTH_URL='$HEALTH_URL' \
-             KEEP_RELEASES='$KEEP_RELEASES' NAME='$NAME' bash -s" <<'REMOTE'
-          set -uo pipefail
-
-          NEW="$RELEASES/$NAME"
-          [ -f "$NEW" ] || { echo "::error::$NEW tidak ada di server"; exit 1; }
-
-          PREVIOUS=$(readlink -f "$LIVE_JAR" || true)
-          echo "Sedang melayani : ${PREVIOUS:-tidak ada}"
-          echo "Akan menjadi    : $NEW"
-
-          if [ "$PREVIOUS" = "$NEW" ]; then
-            echo "Sudah menunjuk ke rilis ini. Tetap restart agar konfigurasi terbaru terbaca."
-          fi
-
-          # ln -sfn adalah rename, jadi pertukarannya atomik: tidak ada saat
-          # ketika path itu tidak menunjuk ke jar yang sah.
-          ln -sfn "$NEW" "$LIVE_JAR"
-
-          sudo systemctl restart qudu-be.service
-
-          echo "Menunggu layanan sehat..."
-          HEALTHY=0
-          for i in $(seq 1 45); do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$HEALTH_URL" || echo 000)
-            if [ "$CODE" = "200" ]; then
-              echo "Sehat setelah ${i} detik."
-              HEALTHY=1
-              break
+          ssh server "set -e
+            if [ ! -w '$DEPLOY_DIR' ]; then
+              sudo -n mkdir -p '$DEPLOY_DIR'
+              sudo -n chown \"\$(id -un):\" '$DEPLOY_DIR'
             fi
-            sleep 1
-          done
+            mkdir -p '$DEPLOY_DIR/scripts'"
 
-          if [ "$HEALTHY" = "1" ]; then
-            # Simpan beberapa rilis terbaru untuk rollback, buang sisanya.
-            # Yang sedang aktif tidak pernah ikut terbuang.
-            ACTIVE=$(readlink -f "$LIVE_JAR")
-            ls -1t "$RELEASES"/*.jar 2>/dev/null | tail -n +$((KEEP_RELEASES + 1)) | while read -r old; do
-              [ "$(readlink -f "$old")" = "$ACTIVE" ] && continue
-              echo "Membuang rilis lama: $(basename "$old")"
-              rm -f "$old"
-            done
+          scp -q docker-compose.yml docker-compose.aws.yml "server:$DEPLOY_DIR/"
+          scp -q scripts/aws-deploy.sh "server:$DEPLOY_DIR/scripts/"
 
-            echo
-            echo "Rilis tersimpan:"
-            ls -1t "$RELEASES"/*.jar 2>/dev/null | while read -r j; do
-              mark=" "; [ "$(readlink -f "$j")" = "$ACTIVE" ] && mark="*"
-              echo "  $mark $(basename "$j")"
-            done
-            df -h / | tail -1
-            exit 0
-          fi
-
-          echo "::error::Rilis baru tidak pernah menjadi sehat."
-          sudo journalctl -u qudu-be.service -n 60 --no-pager || true
-
-          if [ -n "$PREVIOUS" ] && [ -f "$PREVIOUS" ] && [ "$PREVIOUS" != "$NEW" ]; then
-            echo "Mengembalikan ke $PREVIOUS"
-            ln -sfn "$PREVIOUS" "$LIVE_JAR"
-            sudo systemctl restart qudu-be.service
-
-            for i in $(seq 1 45); do
-              CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$HEALTH_URL" || echo 000)
-              [ "$CODE" = "200" ] && { echo "Rollback berhasil, layanan pulih."; break; }
-              sleep 1
-            done
-          else
-            echo "::error::Tidak ada rilis sebelumnya yang bisa dikembalikan. Server sedang TIDAK melayani."
-          fi
-
-          exit 1
-          REMOTE
+      # Token GHCR lewat stdin, bukan argumen, agar tidak terlihat di `ps`.
+      - name: Jalankan deploy di EC2
+        env:
+          IMAGE: ${{ steps.rel.outputs.image }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "$GHCR_TOKEN" | ssh server \
+            "bash '$DEPLOY_DIR/scripts/aws-deploy.sh' '$IMAGE' '${{ github.actor }}'"
 
       - name: Buktikan dari internet publik
-        if: success()
         run: |
           for i in $(seq 1 10); do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
-                   https://api.profilku.site/api/plafonds/catalog || echo 000)
-            if [ "$CODE" = "200" ]; then
-              echo "https://api.profilku.site menjawab 200."
+            # curl mencetak 000 sendiri saat gagal terhubung.
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$PUBLIC_URL") || true
+            if [ "$code" = "200" ]; then
+              echo "$PUBLIC_URL menjawab 200."
               exit 0
             fi
             sleep 3
           done
-          echo "::error::Sehat di localhost tetapi tidak terjangkau dari luar. Periksa nginx atau security group."
+          echo "::error::Sehat di server tetapi $PUBLIC_URL tidak terjangkau (kode $code). Periksa nginx (sudo nginx -t) atau security group port 443."
           exit 1
 
       - name: Ringkasan
@@ -298,9 +251,9 @@ jobs:
           {
             echo "| | |"
             echo "|---|---|"
-            echo "| Mode | ${{ steps.rel.outputs.mode }} |"
-            echo "| Rilis | \`${{ steps.rel.outputs.name }}\` |"
+            echo "| Image | \`${{ steps.rel.outputs.image }}\` |"
             echo "| Commit | \`${GITHUB_SHA::12}\` |"
+            echo "| URL | $PUBLIC_URL |"
             echo "| Hasil | ${{ job.status }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 

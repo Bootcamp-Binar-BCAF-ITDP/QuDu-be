@@ -1,0 +1,51 @@
+# AWS EC2 stack (api.profilku.site): the backend from docker-compose.yml plus
+# its own PostgreSQL. nginx stays on the host and proxies to 127.0.0.1:8080.
+#
+# Used by .github/workflows/deploy.yml through scripts/aws-deploy.sh. By hand:
+#
+#   cd /opt/qudu-be
+#   docker compose -f docker-compose.yml -f docker-compose.aws.yml ps
+#
+# The database lives in the named volume "qudu-be_pgdata". `docker compose down`
+# keeps it; `down -v` DELETES every loan record — never use -v here.
+
+services:
+  db:
+    # 18, like the native cluster it was migrated from: pg_restore refuses
+    # archives written by a newer pg_dump than itself.
+    image: postgres:18-alpine
+    container_name: qudu-be-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: qudu2
+      # Read only when the volume is first initialised. Changing DB_PASSWORD in
+      # .env later does NOT change it inside the database.
+      POSTGRES_USER: ${DB_USERNAME:?DB_USERNAME must be set in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    # Loopback only, for psql or a DBeaver SSH tunnel. 5433, not 5432, so it
+    # never collides with the native PostgreSQL that is still installed (stopped
+    # and disabled) as a fallback.
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-5433}:5432"
+    # PostgreSQL 18 images keep their data under /var/lib/postgresql/18/docker;
+    # the volume goes on the parent, not on the old .../data path.
+    volumes:
+      - pgdata:/var/lib/postgresql
+    # -h 127.0.0.1 on purpose: during first-time init the image runs a temporary
+    # server on the unix socket only, which a socket check would call "ready".
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d qudu2"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+
+  app:
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/qudu2
+
+volumes:
+  pgdata:
