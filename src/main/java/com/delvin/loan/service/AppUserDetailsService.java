@@ -58,7 +58,7 @@ public class AppUserDetailsService implements UserDetailsService {
                 .findByEmail(usernameOrEmail)
                 .orElseThrow(() ->
                         new UsernameNotFoundException(
-                                "User or customer not found"
+                                "Email not found"
                         )
                 );
 

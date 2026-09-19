@@ -396,7 +396,7 @@ public class AuthService {
                 .findByEmail(request.getUsernameOrEmail())
                 .orElseThrow(() ->
                         new IllegalArgumentException(
-                                "Customer email not found"
+                                "Email not found"
                         )
                 );
 
