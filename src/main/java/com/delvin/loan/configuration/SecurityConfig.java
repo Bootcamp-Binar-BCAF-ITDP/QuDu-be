@@ -2,13 +2,15 @@ package com.delvin.loan.configuration;
 
 import com.delvin.loan.common.RoleName;
 import com.delvin.loan.controller.prop.SecurityRoutes;
+import com.delvin.loan.exception.RestAccessDeniedHandler;
+import com.delvin.loan.exception.RestAuthenticationEntryPoint;
 import com.delvin.loan.filter.JwtAuthFilter;
 import com.delvin.loan.service.AppUserDetailsService;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -18,7 +20,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -34,6 +35,8 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final AppUserDetailsService appUserDetailsService;
+    private final RestAuthenticationEntryPoint authenticationEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
 
     @Value("${app.security.cors-allowed-origin}")
     private List<String> allowedOrigins;
@@ -154,6 +157,7 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(request -> request
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(SecurityRoutes.PUBLIC).permitAll()
                         .requestMatchers(SecurityRoutes.DOCS).permitAll()
                         .requestMatchers(SecurityRoutes.LOAN_APPLICATIONS).hasAnyRole(
@@ -171,11 +175,13 @@ public class SecurityConfig {
                 )
 
                 .exceptionHandling(handling ->
-                        handling.authenticationEntryPoint(
-                                new HttpStatusEntryPoint(
-                                        HttpStatus.UNAUTHORIZED
+                        handling
+                                .authenticationEntryPoint(
+                                        authenticationEntryPoint
                                 )
-                        )
+                                .accessDeniedHandler(
+                                        accessDeniedHandler
+                                )
                 )
 
                 .formLogin(form ->

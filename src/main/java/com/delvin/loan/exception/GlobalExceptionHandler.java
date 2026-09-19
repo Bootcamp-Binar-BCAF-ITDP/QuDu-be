@@ -24,6 +24,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -122,8 +124,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException e) {
-        return ResponseUtil.error(HttpStatus.FORBIDDEN,
-                "You do not have permission to access this resource");
+        return ResponseUtil.error(HttpStatus.FORBIDDEN, RestAccessDeniedHandler.MESSAGE);
+    }
+
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ApiResponse<Void>> handleNoEndpoint(Exception e) {
+        return ResponseUtil.error(HttpStatus.NOT_FOUND, "Endpoint not found");
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

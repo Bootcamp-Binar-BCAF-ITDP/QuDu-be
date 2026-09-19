@@ -50,9 +50,6 @@ class OpenApiConfigTest {
         assertThat(config.superadminApi().getPathsToExclude())
                 .containsExactly(SecurityRoutes.PUBLIC);
 
-        // The overlap this exclusion exists for. If the catalog ever stops
-        // living under a SUPERADMIN prefix, this assertion stops being needed
-        // and should fail loudly rather than quietly pass.
         assertThat(SecurityRoutes.PUBLIC).contains("/api/plafonds/catalog");
         assertThat(SecurityRoutes.SUPERADMIN).contains("/api/plafonds/**");
     }

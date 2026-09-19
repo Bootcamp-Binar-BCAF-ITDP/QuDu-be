@@ -1,5 +1,6 @@
 package com.delvin.loan.filter;
 
+import com.delvin.loan.exception.ApiErrorWriter;
 import com.delvin.loan.service.AppUserDetailsService;
 import com.delvin.loan.service.JwtService;
 import io.jsonwebtoken.Claims;
@@ -9,9 +10,11 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -24,10 +27,11 @@ public class JwtAuthFilter  extends OncePerRequestFilter {
     private static final String PREFIX = "Bearer ";
 
     private static final String TOKEN_INVALID =
-            "Invalid token";
+            "Invalid or expired token";
 
     private final JwtService jwtService;
     private final AppUserDetailsService appUserDetailsService;
+    private final ApiErrorWriter errorWriter;
 
     @Override
     protected void doFilterInternal(
@@ -99,7 +103,8 @@ public class JwtAuthFilter  extends OncePerRequestFilter {
             );
 
         } catch (JwtException |
-                 IllegalArgumentException ex) {
+                 IllegalArgumentException |
+                 UsernameNotFoundException ex) {
 
             SecurityContextHolder.clearContext();
 
@@ -115,22 +120,10 @@ public class JwtAuthFilter  extends OncePerRequestFilter {
             String message
     ) throws IOException {
 
-        response.setStatus(
-                HttpServletResponse.SC_UNAUTHORIZED
-        );
-
-        response.setContentType(
-                "application/json"
-        );
-
-        response.getWriter().write(
-                """
-                {
-                    "status": 401,
-                    "success": false,
-                    "message": "%s"
-                }
-                """.formatted(message)
+        errorWriter.write(
+                response,
+                HttpStatus.UNAUTHORIZED,
+                message
         );
     }
 }
