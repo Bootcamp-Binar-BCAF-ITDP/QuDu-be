@@ -1,6 +1,8 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.CacheNames;
 import com.delvin.loan.common.PageResponse;
+import com.delvin.loan.common.evict.EvictsPlafondCaches;
 import com.delvin.loan.dto.request.plafond.PlafondRequest;
 import com.delvin.loan.dto.response.plafond.PlafondResponse;
 import com.delvin.loan.exception.BusinessException;
@@ -8,6 +10,7 @@ import com.delvin.loan.model.Customer;
 import com.delvin.loan.model.Plafond;
 import com.delvin.loan.repository.PlafondRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,7 @@ public class PlafondService {
 
     private final PlafondRepository plafondRepository;
 
+    @Cacheable(cacheNames = CacheNames.PLAFOND_PAGE, keyGenerator = "pageKeyGenerator")
     @Transactional(readOnly = true)
     public PageResponse<PlafondResponse> getAll(String search, Pageable pageable) {
 
@@ -34,6 +38,7 @@ public class PlafondService {
         return PageResponse.of(plafonds, this::toResponse);
     }
 
+    @Cacheable(cacheNames = CacheNames.PLAFOND_CATALOG)
     @Transactional(readOnly = true)
     public List<PlafondResponse> catalog() {
         return plafondRepository.findAllByIsActiveTrueOrderByLevelAsc().stream()
@@ -41,16 +46,19 @@ public class PlafondService {
                 .toList();
     }
 
+    @Cacheable(cacheNames = CacheNames.PLAFOND_BY_ID, key = "#plafondId")
     @Transactional(readOnly = true)
     public PlafondResponse getById(Integer plafondId) {
         return PlafondResponse.from(findById(plafondId));
     }
 
+    @Cacheable(cacheNames = CacheNames.PLAFOND_BY_LEVEL, key = "#level")
     @Transactional(readOnly = true)
     public PlafondResponse getByLevel(Integer level) {
         return PlafondResponse.from(findByLevel(level));
     }
 
+    @EvictsPlafondCaches
     @Transactional
     public PlafondResponse create(PlafondRequest request) {
 
@@ -68,6 +76,7 @@ public class PlafondService {
         return PlafondResponse.from(plafondRepository.save(plafond));
     }
 
+    @EvictsPlafondCaches
     @Transactional
     public PlafondResponse update(Integer plafondId, PlafondRequest request) {
 
@@ -93,6 +102,7 @@ public class PlafondService {
         return PlafondResponse.from(plafondRepository.save(plafond));
     }
 
+    @EvictsPlafondCaches
     @Transactional
     public void delete(Integer plafondId) {
 

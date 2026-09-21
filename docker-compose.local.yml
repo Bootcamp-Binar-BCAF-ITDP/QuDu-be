@@ -35,14 +35,36 @@ services:
       start_period: 20s
       retries: 10
 
+  # Cache for @Cacheable/@CacheEvict (see RedisConfig). No volume on purpose:
+  # a cache that survives a restart is a cache that can serve data the database
+  # no longer has. Losing it costs one slow first request.
+  redis:
+    image: redis:8-alpine
+    container_name: qudu-be-redis
+    restart: unless-stopped
+    # Bound to loopback so nothing outside this machine can read or write cache
+    # entries — with default typing enabled, write access to Redis is a way in.
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
+
   app:
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     # Overrides whatever DB_URL .env.local carries: inside the compose network
     # the database is simply "db".
     environment:
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-qudu2}
+      REDIS_HOST: redis
+      CACHE_TYPE: redis
 
 volumes:
   pgdata:

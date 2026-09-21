@@ -50,15 +50,12 @@ public class BranchController {
 
     @GetMapping("/{branchCode}")
     public ResponseEntity<ApiResponse<BranchResponse>> getBranchById(@PathVariable String branchCode) {
-
         try {
-
             BranchResponse response = branchService.getBranchById(branchCode);
 
             return ResponseUtil.success("Branch found", response);
 
         } catch (RuntimeException e) {
-
             return ResponseUtil.error(HttpStatus.NOT_FOUND, e.getMessage());
 
         }
