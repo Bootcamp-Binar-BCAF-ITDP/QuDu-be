@@ -120,9 +120,19 @@ public class LoanMapper {
                 ? Collections.emptyList()
                 : app.getVerifications().stream().map(this::toVerificationResponse).collect(Collectors.toList());
 
+        Branch branch = app.getBranch();
+        if (branch == null && app.getCustomer() != null) {
+            branch = app.getCustomer().getBranch();
+        }
+        if (branch == null && app.getReview() != null && app.getReview().getMarketing() != null) {
+            branch = app.getReview().getMarketing().getBranch();
+        }
+
         return new LoanApplicationResponse(
                 app.getApplicationId(),
                 toCustomerSummary(app.getCustomer()),
+                branch == null ? null : branch.getBranchId(),
+                branch == null ? null : branch.getBranchName(),
                 app.getRequestedAmount(),
                 app.getTenor(),
                 app.getPurpose(),

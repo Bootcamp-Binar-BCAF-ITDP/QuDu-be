@@ -226,9 +226,20 @@ public class AuthService {
             throw BusinessException.conflict("That NIK is already in use");
         }
 
+        if (request.getBranchId() == null) {
+            throw BusinessException.badRequest("Please choose a branch");
+        }
+
+        Branch branch = branchRepository
+                .findByBranchIdAndIsActive(request.getBranchId(), true)
+                .orElseThrow(() -> BusinessException.badRequest(
+                        "Branch not found or inactive: " + request.getBranchId()));
+
         Customer customer = new Customer();
 
         customer.setCustomerId(UUID.randomUUID().toString());
+
+        customer.setBranch(branch);
 
         plafondService.assignDefaultPlafond(customer);
 

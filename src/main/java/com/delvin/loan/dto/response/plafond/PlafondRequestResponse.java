@@ -1,6 +1,7 @@
 package com.delvin.loan.dto.response.plafond;
 
 import com.delvin.loan.common.PlafondRequestStatus;
+import com.delvin.loan.model.Branch;
 import com.delvin.loan.model.CustomerPlafondRequest;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,6 +23,9 @@ public class PlafondRequestResponse {
     private String requestId;
     private String customerId;
     private String customerName;
+
+    private Integer branchId;
+    private String branchName;
 
     private Integer previousLevel;
     private Integer requestedLevel;
@@ -45,10 +49,16 @@ public class PlafondRequestResponse {
             return null;
         }
 
+        Branch branch = request.getBranch() != null
+                ? request.getBranch()
+                : request.getCustomer().getBranch();
+
         return PlafondRequestResponse.builder()
                 .requestId(request.getRequestId())
                 .customerId(request.getCustomer().getCustomerId())
                 .customerName(request.getCustomer().getCustomerName())
+                .branchId(branch == null ? null : branch.getBranchId())
+                .branchName(branch == null ? null : branch.getBranchName())
                 .previousLevel(request.getCurrentPlafond() != null ? request.getCurrentPlafond().getLevel() : null)
                 .requestedLevel(request.getRequestedPlafond().getLevel())
                 .requestedAmount(request.getRequestedAmount())

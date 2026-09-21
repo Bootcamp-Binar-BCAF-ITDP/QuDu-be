@@ -28,12 +28,13 @@ public class MarketingController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> marketingBucket(
+            @AuthenticationPrincipal AppUser appUser,
             @PageableDefault(size = 10, sort = "submissionDate", direction = Sort.Direction.DESC)
             Pageable pageable
     ) {
         return ResponseUtil.success(
                 "Marketing bucket retrieved",
-                applicationService.listMarketingBucket(pageable));
+                applicationService.listMarketingBucket(appUser.getUserId(), pageable));
     }
 
     @PostMapping

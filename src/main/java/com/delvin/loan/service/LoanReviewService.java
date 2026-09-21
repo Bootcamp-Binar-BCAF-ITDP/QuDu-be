@@ -26,6 +26,7 @@ public class LoanReviewService {
     private final LoanApplicationService applicationService;
     private final LoanMapper mapper;
     private final ApplicationEventPublisher events;
+    private final BranchRouting branchRouting;
 
     @Transactional
     public LoanReviewResponse submitReview(String marketingUserId, LoanReviewRequest request) {
@@ -35,6 +36,8 @@ public class LoanReviewService {
         User marketing = applicationService.getUserWithRole(marketingUserId, RoleName.MARKETING);
 
         LoanApplication application = applicationService.getApplicationOrThrow(request.getApplicationId());
+
+        branchRouting.requireSameBranch(marketing, application);
 
         if (!LoanStatus.CHECKING.equals(application.getStatus())) {
             throw BusinessException.conflict(

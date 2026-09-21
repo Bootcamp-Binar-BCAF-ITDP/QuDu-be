@@ -29,7 +29,20 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
 
     Page<LoanApplication> findByCustomer_CustomerId(String customerId, Pageable pageable);
 
-    Page<LoanApplication> findByStatusAndReview_Marketing_Branch_BranchId(String status, Integer branchId, Pageable pageable);
+    @Query("""
+            select a from LoanApplication a
+            left join a.branch b
+            left join a.customer c
+            left join c.branch cb
+            left join a.review r
+            left join r.marketing m
+            left join m.branch mb
+            where a.status = :status
+              and coalesce(b.branchId, cb.branchId, mb.branchId) = :branchId
+            """)
+    Page<LoanApplication> findBucket(@Param("status") String status,
+                                     @Param("branchId") Integer branchId,
+                                     Pageable pageable);
 
     Page<LoanApplication> findByStatusIn(Collection<String> statuses, Pageable pageable);
 

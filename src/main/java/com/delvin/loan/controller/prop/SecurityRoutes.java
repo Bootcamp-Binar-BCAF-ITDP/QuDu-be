@@ -9,21 +9,11 @@ public class SecurityRoutes {
             "/api/auth/**",
             "/api/dashboard/**",
 
-            "/api/plafonds/catalog"
+            "/api/plafonds/catalog",
+
+            "/api/branches/options"
     };
 
-    /**
-     * The OpenAPI document and the page that renders it.
-     *
-     * Kept apart from PUBLIC rather than folded into it for two reasons. These
-     * are not API endpoints, and OpenApiConfig builds its Public documentation
-     * group from PUBLIC, so mixing them in would describe the docs as part of
-     * the API. And closing the docs to the outside is then one line here rather
-     * than picking entries out of a shared list.
-     *
-     * Without these the Swagger UI answers 401 and shows an empty screen with
-     * no hint why.
-     */
     public static final String[] DOCS = {
             "/v3/api-docs",
             "/v3/api-docs/**",

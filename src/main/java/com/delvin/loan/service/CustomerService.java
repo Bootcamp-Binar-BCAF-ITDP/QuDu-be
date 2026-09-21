@@ -59,6 +59,7 @@ public class CustomerService {
         LoanApplication application = new LoanApplication();
         application.setApplicationId(generateApplicationId());
         application.setCustomer(customer);
+        application.setBranch(customer.getBranch());
         application.setRequestedAmount(request.getRequestedAmount());
         application.setTenor(request.getTenor());
         application.setPurpose(request.getPurpose());
@@ -113,6 +114,8 @@ public class CustomerService {
                 .birthDate(customer.getBirthDate())
                 .occupation(customer.getOccupation())
                 .citizenship(customer.getCitizenship())
+                .branchId(customer.getBranch() == null ? null : customer.getBranch().getBranchId())
+                .branchName(customer.getBranch() == null ? null : customer.getBranch().getBranchName())
                 .approvedLimit(creditLimitService.grantedLimit(customer))
                 .usedLimit(creditLimitService.usedLimit(customer.getCustomerId()))
                 .availableLimit(creditLimitService.availableLimit(customer))
@@ -178,6 +181,7 @@ public class CustomerService {
         CustomerPlafondRequest request = new CustomerPlafondRequest();
         request.setRequestId(generatePlafondRequestId());
         request.setCustomer(customer);
+        request.setBranch(customer.getBranch());
         request.setCurrentPlafond(current);
         request.setRequestedPlafond(target);
         request.setRequestedAmount(body.getRequestedAmount());

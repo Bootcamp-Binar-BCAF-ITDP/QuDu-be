@@ -21,6 +21,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
@@ -51,6 +52,9 @@ class LoanReviewServiceTest {
     @Mock
     private ApplicationEventPublisher events;
 
+    @Spy
+    private BranchRouting branchRouting = new BranchRouting();
+
     @InjectMocks
     private LoanReviewService service;
 
@@ -65,7 +69,7 @@ class LoanReviewServiceTest {
     }
 
     private LoanApplication stubHappyPath(String status) {
-        User marketing = TestFixtures.user(RoleName.MARKETING);
+        User marketing = TestFixtures.user(RoleName.MARKETING, TestFixtures.BRANCH_ID);
         LoanApplication application = TestFixtures.application(status);
 
         when(applicationService.getUserWithRole(TestFixtures.USER_ID, RoleName.MARKETING))
@@ -74,6 +78,28 @@ class LoanReviewServiceTest {
                 .thenReturn(application);
 
         return application;
+    }
+
+    @Test
+    @DisplayName("marketing cannot review another branch's application")
+    void rejectsCrossBranchReview() {
+        User marketing = TestFixtures.user(RoleName.MARKETING, TestFixtures.BRANCH_ID);
+        LoanApplication application =
+                TestFixtures.application(LoanStatus.CHECKING, TestFixtures.BRANCH_ID + 1);
+
+        when(applicationService.getUserWithRole(TestFixtures.USER_ID, RoleName.MARKETING))
+                .thenReturn(marketing);
+        when(applicationService.getApplicationOrThrow(TestFixtures.APPLICATION_ID))
+                .thenReturn(application);
+
+        assertThatThrownBy(() -> service.submitReview(TestFixtures.USER_ID, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("This application belongs to a different branch")
+                .extracting(e -> ((BusinessException) e).getStatus())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+
+        verifyNoInteractions(reviewRepository);
+        assertThat(application.getStatus()).isEqualTo(LoanStatus.CHECKING);
     }
 
     @Test

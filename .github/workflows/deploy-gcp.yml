@@ -1,17 +1,5 @@
 name: Deploy GCP
 
-# Setiap push ke main yang lolos test langsung tayang ke VM Google Cloud.
-#
-#   test  ->  image (dibangun di runner, di-push ke GHCR)  ->  deploy (VM menarik image)
-#
-# VM tidak pernah mem-build apa pun dan tidak perlu clone repo: workflow ini
-# mengunggah docker-compose.yml, docker-compose.gcp.yml, .env (dirakit dari
-# GitHub Secrets), dan scripts/gcp-deploy.sh, lalu skrip itu yang bekerja di VM:
-# pasang Docker kalau belum ada, nyalakan PostgreSQL, restore dump SEKALI saja
-# selama database masih kosong, tukar container aplikasi, rollback kalau gagal.
-#
-# Ini target yang BERBEDA dari deploy.yml (EC2, systemd). Lihat DEPLOY-GCP.md.
-
 on:
   push:
     branches: [main]
@@ -22,10 +10,6 @@ on:
         required: false
         type: string
 
-# Satu deploy pada satu waktu, dan jangan membatalkan yang sedang jalan: restore
-# database atau pertukaran container yang terpotong di tengah meninggalkan VM
-# setengah jadi. Grup ini sengaja beda dari deploy.yml agar keduanya tidak
-# saling menunggu.
 concurrency:
   group: deploy-gcp
   cancel-in-progress: false
@@ -53,8 +37,6 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # verify, bukan package: gerbang coverage JaCoCo ikut menghentikan deploy.
-      # LoanApplicationTests butuh PostgreSQL sungguhan, jadi dilewati.
       - name: Test dan gerbang coverage
         run: |
           chmod +x ./mvnw
@@ -80,7 +62,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Nama image di GHCR wajib huruf kecil; nama repo org ini tidak.
       - name: Tentukan nama image
         id: meta
         run: |
@@ -96,9 +77,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # .dockerignore mengeluarkan application.properties dan kredensial
-      # Firebase, jadi image ini tidak membawa secret apa pun. Semua konfigurasi
-      # datang dari .env di VM.
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -141,10 +119,6 @@ jobs:
           fi
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
-      # Merakit .env dari Secrets (rahasia) dan Variables (bukan rahasia, ada
-      # default). Nilai dibungkus kutip tunggal agar compose tidak menafsirkan
-      # "$" di dalam password; karena itu nilai tidak boleh berisi kutip tunggal
-      # atau baris baru. Secret dibaca lewat env, tidak pernah disisipkan ke skrip.
       - name: Rakit .env dari GitHub Secrets
         env:
           GCP_HOST: ${{ secrets.GCP_HOST }}
@@ -223,8 +197,6 @@ jobs:
 
           echo "Konfigurasi siap: $(echo $keys | wc -w) kunci, Firebase=$FIREBASE_ENABLED, APP_PORT=$APP_PORT"
 
-      # tr -d '\r': kunci yang disalin dari Windows membawa CRLF, dan OpenSSH
-      # menolaknya dengan "error in libcrypto" yang tidak menyebut sebabnya.
       - name: Siapkan SSH
         env:
           GCP_SSH_KEY: ${{ secrets.GCP_SSH_KEY }}
@@ -284,9 +256,6 @@ jobs:
             ssh vm "chmod 600 '$DEPLOY_DIR/.firebase-credentials.upload'"
           fi
 
-      # Token GHCR lewat stdin, bukan argumen, agar tidak terlihat di `ps` VM.
-      # Keluaran disalin ke log supaya baris PUBLIC_URL= / TUNNEL_MODE= dari
-      # skrip bisa dipakai langkah berikutnya.
       - name: Jalankan deploy di VM
         id: deploy
         env:
@@ -303,8 +272,6 @@ jobs:
           echo "tunnel_url=$(sed -n 's/^PUBLIC_URL=//p' .deploy/deploy.log | tail -1)" >> "$GITHUB_OUTPUT"
           echo "tunnel_mode=$(sed -n 's/^TUNNEL_MODE=//p' .deploy/deploy.log | tail -1)" >> "$GITHUB_OUTPUT"
 
-      # Urutan sumber URL: variable PUBLIC_BASE_URL (kalau nanti ada domain),
-      # lalu URL Cloudflare tunnel dari skrip, lalu IP:port langsung.
       - name: Buktikan dari internet publik
         env:
           GCP_HOST: ${{ secrets.GCP_HOST }}

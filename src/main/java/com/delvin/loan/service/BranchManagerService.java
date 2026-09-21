@@ -40,6 +40,7 @@ public class BranchManagerService {
     private final LoanDecisionRepository loanDecisionRepository;
     private final LoanMapper mapper;
     private final ApplicationEventPublisher events;
+    private final BranchRouting branchRouting;
 
     public PageResponse<LoanApplicationResponse> listBranchManagerBucket(
             String branchManagerUserId, Pageable pageable) {
@@ -48,7 +49,7 @@ public class BranchManagerService {
         Integer branchId = requireBranch(branchManager);
 
         return PageResponse.of(
-                applicationRepository.findByStatusAndReview_Marketing_Branch_BranchId(
+                applicationRepository.findBucket(
                         LoanStatus.PENDING_BRANCH_MANAGER, branchId, pageable),
                 mapper::toApplicationResponse);
     }
@@ -88,15 +89,7 @@ public class BranchManagerService {
             );
         }
 
-        Integer applicationBranchId = requireBranch(application.getReview().getMarketing());
-
-        Integer branchManagerBranchId = requireBranch(branchManager);
-
-        if (!applicationBranchId.equals(branchManagerBranchId)) {
-            throw BusinessException.forbidden(
-                    "This application belongs to a different branch"
-            );
-        }
+        branchRouting.requireSameBranch(branchManager, application);
 
         LoanDecision decision = new LoanDecision();
 
@@ -136,10 +129,13 @@ public class BranchManagerService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<PlafondRequestResponse> listPlafondRequestBucket(Pageable pageable) {
+    public PageResponse<PlafondRequestResponse> listPlafondRequestBucket(
+            String branchManagerUserId, Pageable pageable) {
 
-        Page<CustomerPlafondRequest> page =
-                plafondRequestRepository.findByStatus(PlafondRequestStatus.PENDING, pageable);
+        User branchManager = getUserWithRole(branchManagerUserId, RoleName.BRANCH_MANAGER);
+
+        Page<CustomerPlafondRequest> page = plafondRequestRepository.findBucket(
+                PlafondRequestStatus.PENDING, requireBranch(branchManager), pageable);
 
         return PageResponse.of(page, PlafondRequestResponse::from);
     }
@@ -150,6 +146,8 @@ public class BranchManagerService {
                                                        PlafondDecisionRequest decision) {
 
         CustomerPlafondRequest request = findPending(requestId);
+
+        requireSameBranch(getUserWithRole(userId, RoleName.BRANCH_MANAGER), request);
 
         if (decision.getDecision() != PlafondRequestStatus.APPROVED
                 && decision.getDecision() != PlafondRequestStatus.REJECTED) {
@@ -211,6 +209,27 @@ public class BranchManagerService {
     }
 
     public record StoredPlafondDocument(Path path, MediaType contentType, String fileName) {}
+
+    private void requireSameBranch(User branchManager, CustomerPlafondRequest request) {
+
+        Integer requestBranchId = null;
+
+        if (request.getBranch() != null) {
+            requestBranchId = request.getBranch().getBranchId();
+        } else if (request.getCustomer() != null && request.getCustomer().getBranch() != null) {
+            requestBranchId = request.getCustomer().getBranch().getBranchId();
+        }
+
+        if (requestBranchId == null) {
+            throw BusinessException.badRequest(
+                    "Request " + request.getRequestId() + " has no branch. The customer registered"
+                            + " before branch routing existed; assign them a branch first.");
+        }
+
+        if (!requestBranchId.equals(requireBranch(branchManager))) {
+            throw BusinessException.forbidden("This request belongs to a different branch");
+        }
+    }
 
     private CustomerPlafondRequest findPending(String requestId) {
 

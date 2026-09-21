@@ -14,6 +14,10 @@ import java.util.List;
 public class LoanApplicationResponse {
     private String applicationId;
     private CustomerSummary customer;
+
+    private Integer branchId;
+    private String branchName;
+
     private BigDecimal requestedAmount;
     private Integer tenor;
     private String purpose;

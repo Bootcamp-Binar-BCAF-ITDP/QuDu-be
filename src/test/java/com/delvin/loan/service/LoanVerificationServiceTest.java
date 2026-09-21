@@ -7,6 +7,7 @@ import com.delvin.loan.dto.request.loanreq.LoanVerificationRequest;
 import com.delvin.loan.dto.response.loanresp.LoanVerificationResponse;
 import com.delvin.loan.exception.BusinessException;
 import com.delvin.loan.model.LoanApplication;
+import com.delvin.loan.model.User;
 import com.delvin.loan.model.LoanVerification;
 import com.delvin.loan.repository.LoanVerificationRepository;
 import com.delvin.loan.support.TestFixtures;
@@ -19,6 +20,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
@@ -45,6 +47,9 @@ class LoanVerificationServiceTest {
     @Mock
     private LoanMapper mapper;
 
+    @Spy
+    private BranchRouting branchRouting = new BranchRouting();
+
     @InjectMocks
     private LoanVerificationService service;
 
@@ -61,12 +66,36 @@ class LoanVerificationServiceTest {
     private LoanApplication stubLookups(String status) {
         LoanApplication application = TestFixtures.application(status);
 
+        User backOffice = TestFixtures.user(RoleName.BACK_OFFICE, TestFixtures.BRANCH_ID);
+        backOffice.setUserId(TestFixtures.USER_ID);
+
         when(applicationService.getUserWithRole(TestFixtures.USER_ID, RoleName.BACK_OFFICE))
-                .thenReturn(TestFixtures.user(RoleName.BACK_OFFICE));
+                .thenReturn(backOffice);
         when(applicationService.getApplicationOrThrow(TestFixtures.APPLICATION_ID))
                 .thenReturn(application);
 
         return application;
+    }
+
+    @Test
+    @DisplayName("back office cannot verify another branch's application")
+    void rejectsCrossBranchVerification() {
+        LoanApplication application =
+                TestFixtures.application(LoanStatus.PENDING_BACK_OFFICE, TestFixtures.BRANCH_ID + 1);
+
+        when(applicationService.getUserWithRole(TestFixtures.USER_ID, RoleName.BACK_OFFICE))
+                .thenReturn(TestFixtures.user(RoleName.BACK_OFFICE, TestFixtures.BRANCH_ID));
+        when(applicationService.getApplicationOrThrow(TestFixtures.APPLICATION_ID))
+                .thenReturn(application);
+
+        assertThatThrownBy(() -> service.submitVerification(TestFixtures.USER_ID, request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("This application belongs to a different branch")
+                .extracting(e -> ((BusinessException) e).getStatus())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+
+        verifyNoInteractions(verificationRepository);
+        assertThat(application.getStatus()).isEqualTo(LoanStatus.PENDING_BACK_OFFICE);
     }
 
     @Test

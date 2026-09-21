@@ -36,6 +36,7 @@ public class LoanDisbursementService {
 
     private static final Logger log = LoggerFactory.getLogger(LoanDisbursementService.class);
     private final ApplicationEventPublisher events;
+    private final BranchRouting branchRouting;
 
     @Transactional
     public LoanDisbursementResponse disburse(
@@ -64,9 +65,7 @@ public class LoanDisbursementService {
                     "Application " + application.getApplicationId() + " has no marketing review on file");
         }
 
-        if (!requireBranch(review.getMarketing()).equals(requireBranch(backOffice))) {
-            throw BusinessException.forbidden("This application belongs to a different branch");
-        }
+        branchRouting.requireSameBranch(backOffice, application);
 
         LoanVerification verification = verificationRepository
                 .findFirstByApplication_ApplicationIdAndCallStatusOrderByVerificationDateDesc(
@@ -124,7 +123,7 @@ public class LoanDisbursementService {
 
         Integer branchId = requireBranch(backOffice);
 
-        return PageResponse.of(applicationRepository.findByStatusAndReview_Marketing_Branch_BranchId(
+        return PageResponse.of(applicationRepository.findBucket(
                 LoanStatus.VERIFIED, branchId, pageable),
         mapper::toApplicationResponse);
     }
