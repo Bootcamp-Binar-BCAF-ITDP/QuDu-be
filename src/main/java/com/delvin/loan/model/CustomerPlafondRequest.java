@@ -24,6 +24,10 @@ public class CustomerPlafondRequest {
     private Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_plafond_id")
     private Plafond currentPlafond;
 

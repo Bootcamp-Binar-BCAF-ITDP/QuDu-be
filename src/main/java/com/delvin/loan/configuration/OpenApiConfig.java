@@ -12,16 +12,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 
-/**
- * API documentation, grouped by who is allowed to call what.
- *
- * Every group below takes its paths straight from {@link SecurityRoutes}, which
- * is the same array {@code SecurityConfig} matches requests against. Retyping
- * the prefixes here would create a second answer to "who can call this", and
- * the two would drift apart the first time someone adds a route to only one of
- * them. Add a prefix to SecurityRoutes and it appears in the right group here
- * on the next start, with no edit to this file.
- */
 @Configuration
 public class OpenApiConfig {
 
@@ -85,12 +75,6 @@ public class OpenApiConfig {
                 SecurityRoutes.BACKOFFICE);
     }
 
-    /**
-     * Master data. Excludes the public paths on purpose: /api/plafonds/catalog
-     * sits under /api/plafonds/** but SecurityConfig matches PUBLIC first, so it
-     * is reachable without a token. Listing it here would tell a reader it needs
-     * SUPERADMIN, which is the opposite of the truth.
-     */
     @Bean
     public GroupedOpenApi superadminApi() {
         return GroupedOpenApi.builder()
@@ -103,11 +87,6 @@ public class OpenApiConfig {
                 .build();
     }
 
-    /**
-     * Not a role. These endpoints are open to all four internal roles at once,
-     * so they cannot sit in any single group above without misreporting who may
-     * call them.
-     */
     @Bean
     public GroupedOpenApi loanApplicationsApi() {
         return secured("loan-applications", "Loan Applications (shared)",
@@ -117,7 +96,6 @@ public class OpenApiConfig {
     }
 
     /* ---- helpers ------------------------------------------------------- */
-
     private GroupedOpenApi open(String group, String display, String note, String[] paths) {
         return GroupedOpenApi.builder()
                 .group(group)
@@ -136,11 +114,6 @@ public class OpenApiConfig {
                 .build();
     }
 
-    /**
-     * Applies the bearer requirement to the whole group rather than to each
-     * controller. Annotating 17 controllers by hand would be one more place to
-     * forget, and the Public group would still need its lock icon removed.
-     */
     private OpenApiCustomizer requiresToken(String note) {
         return api -> {
             api.getInfo().setDescription(note);

@@ -65,12 +65,13 @@ public class BranchManagerController {
 
     @GetMapping("/plafond-requests")
     public ResponseEntity<ApiResponse<PageResponse<PlafondRequestResponse>>> plafondRequestBucket(
+            @AuthenticationPrincipal AppUser appUser,
             @PageableDefault(size = 10, sort = "requestDate", direction = Sort.Direction.ASC)
             Pageable pageable
     ) {
         return ResponseUtil.success(
                 "Plafond request bucket retrieved",
-                branchManagerService.listPlafondRequestBucket(pageable)
+                branchManagerService.listPlafondRequestBucket(appUser.getUserId(), pageable)
         );
     }
 

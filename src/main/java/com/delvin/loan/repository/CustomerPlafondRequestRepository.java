@@ -5,6 +5,8 @@ import com.delvin.loan.model.CustomerPlafondRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -20,4 +22,16 @@ public interface CustomerPlafondRequestRepository extends JpaRepository<Customer
     boolean existsByCustomer_CustomerIdAndStatus(String customerId, PlafondRequestStatus status);
 
     Page<CustomerPlafondRequest> findByStatus(PlafondRequestStatus status, Pageable pageable);
+
+    @Query("""
+            select r from CustomerPlafondRequest r
+            left join r.branch b
+            left join r.customer c
+            left join c.branch cb
+            where r.status = :status
+              and coalesce(b.branchId, cb.branchId) = :branchId
+            """)
+    Page<CustomerPlafondRequest> findBucket(@Param("status") PlafondRequestStatus status,
+                                            @Param("branchId") Integer branchId,
+                                            Pageable pageable);
 }

@@ -25,6 +25,7 @@ public class LoanVerificationService {
     private final LoanVerificationRepository verificationRepository;
     private final LoanApplicationService applicationService;
     private final LoanMapper mapper;
+    private final BranchRouting branchRouting;
 
     @Transactional
     public LoanVerificationResponse submitVerification(String backOfficeUserId, LoanVerificationRequest request) {
@@ -32,6 +33,8 @@ public class LoanVerificationService {
 
         User backOffice = applicationService.getUserWithRole(backOfficeUserId, RoleName.BACK_OFFICE);
         LoanApplication application = applicationService.getApplicationOrThrow(request.getApplicationId());
+
+        branchRouting.requireSameBranch(backOffice, application);
 
         if (!LoanStatus.PENDING_BACK_OFFICE.equals(application.getStatus())) {
             throw BusinessException.conflict(

@@ -22,6 +22,10 @@ public class Customer {
     @JoinColumn(name = "plafond_id")
     private Plafond plafond;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
+
     @Column(nullable = false)
     private String customerName;
 

@@ -67,7 +67,7 @@ public class LoanApplicationService {
         }
 
         return switch (roleName.trim().toUpperCase()) {
-            case RoleName.MARKETING      -> listMarketingBucket(pageable);
+            case RoleName.MARKETING      -> listMarketingBucket(userId, pageable);
             case RoleName.BRANCH_MANAGER -> listBranchManagerBucket(userId, pageable);
             case RoleName.BACK_OFFICE    -> listBackOfficeBucket(userId, pageable);
             default -> throw BusinessException.forbidden(
@@ -119,9 +119,14 @@ public class LoanApplicationService {
                 mapper::toApplicationResponse);
     }
 
-    public PageResponse<LoanApplicationResponse> listMarketingBucket(Pageable pageable) {
+    public PageResponse<LoanApplicationResponse> listMarketingBucket(
+            String marketingUserId, Pageable pageable) {
+
+        User marketing = getUserWithRole(marketingUserId, RoleName.MARKETING);
+
         return PageResponse.of(
-                applicationRepository.findByStatus(LoanStatus.CHECKING, pageable),
+                applicationRepository.findBucket(
+                        LoanStatus.CHECKING, requireBranch(marketing), pageable),
                 mapper::toApplicationResponse);
     }
 
@@ -129,11 +134,10 @@ public class LoanApplicationService {
             String branchManagerUserId, Pageable pageable) {
 
         User branchManager = getUserWithRole(branchManagerUserId, RoleName.BRANCH_MANAGER);
-        Integer branchId = requireBranch(branchManager);
 
         return PageResponse.of(
-                applicationRepository.findByStatusAndReview_Marketing_Branch_BranchId(
-                        LoanStatus.PENDING_BRANCH_MANAGER, branchId, pageable),
+                applicationRepository.findBucket(
+                        LoanStatus.PENDING_BRANCH_MANAGER, requireBranch(branchManager), pageable),
                 mapper::toApplicationResponse);
     }
 
@@ -141,11 +145,10 @@ public class LoanApplicationService {
             String backOfficeUserId, Pageable pageable) {
 
         User backOffice = getUserWithRole(backOfficeUserId, RoleName.BACK_OFFICE);
-        Integer branchId = requireBranch(backOffice);
 
         return PageResponse.of(
-                applicationRepository.findByStatusAndReview_Marketing_Branch_BranchId(
-                        LoanStatus.PENDING_BACK_OFFICE, branchId, pageable),
+                applicationRepository.findBucket(
+                        LoanStatus.PENDING_BACK_OFFICE, requireBranch(backOffice), pageable),
                 mapper::toApplicationResponse);
     }
 

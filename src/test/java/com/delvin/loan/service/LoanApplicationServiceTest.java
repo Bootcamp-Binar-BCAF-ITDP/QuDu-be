@@ -289,44 +289,57 @@ class LoanApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("the marketing bucket is every application still in CHECKING")
-    void marketingBucketIsCheckingApplications() {
-        when(applicationRepository.findByStatus(LoanStatus.CHECKING, PAGE)).thenReturn(onePage());
+    @DisplayName("the marketing bucket is CHECKING applications from the marketer's own branch")
+    void marketingBucketIsBranchScoped() {
+        User marketing = TestFixtures.user(RoleName.MARKETING, 5);
+        when(userRepository.findById(marketing.getUserId())).thenReturn(Optional.of(marketing));
+        when(applicationRepository.findBucket(LoanStatus.CHECKING, 5, PAGE)).thenReturn(onePage());
         stubMapper();
 
-        service.listMarketingBucket(PAGE);
+        service.listMarketingBucket(marketing.getUserId(), PAGE);
 
-        verify(applicationRepository).findByStatus(LoanStatus.CHECKING, PAGE);
+        verify(applicationRepository).findBucket(LoanStatus.CHECKING, 5, PAGE);
     }
 
     @Test
-    @DisplayName("the branch manager bucket is scoped to the reviewer's branch")
+    @DisplayName("marketing with no branch cannot open a bucket")
+    void marketingBucketNeedsABranch() {
+        User marketing = TestFixtures.user(RoleName.MARKETING);
+        when(userRepository.findById(TestFixtures.USER_ID)).thenReturn(Optional.of(marketing));
+
+        assertThatThrownBy(() -> service.listMarketingBucket(TestFixtures.USER_ID, PAGE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("has no branch assigned");
+
+        verifyNoInteractions(applicationRepository);
+    }
+
+    @Test
+    @DisplayName("the branch manager bucket is scoped to the manager's branch")
     void branchManagerBucketIsBranchScoped() {
         User manager = TestFixtures.user(RoleName.BRANCH_MANAGER, 5);
         when(userRepository.findById(manager.getUserId())).thenReturn(Optional.of(manager));
-        when(applicationRepository.findByStatusAndReview_Marketing_Branch_BranchId(
+        when(applicationRepository.findBucket(
                 LoanStatus.PENDING_BRANCH_MANAGER, 5, PAGE)).thenReturn(onePage());
         stubMapper();
 
         service.listBranchManagerBucket(manager.getUserId(), PAGE);
 
-        verify(applicationRepository).findByStatusAndReview_Marketing_Branch_BranchId(
-                LoanStatus.PENDING_BRANCH_MANAGER, 5, PAGE);
+        verify(applicationRepository).findBucket(LoanStatus.PENDING_BRANCH_MANAGER, 5, PAGE);
     }
 
     @Test
-    @DisplayName("the back office bucket is scoped to the reviewer's branch")
+    @DisplayName("the back office bucket is scoped to the back office's branch")
     void backOfficeBucketIsBranchScoped() {
         User backOffice = TestFixtures.user(RoleName.BACK_OFFICE, 5);
         when(userRepository.findById(backOffice.getUserId())).thenReturn(Optional.of(backOffice));
-        when(applicationRepository.findByStatusAndReview_Marketing_Branch_BranchId(
+        when(applicationRepository.findBucket(
                 LoanStatus.PENDING_BACK_OFFICE, 5, PAGE)).thenReturn(onePage());
         stubMapper();
 
         service.listBackOfficeBucket(backOffice.getUserId(), PAGE);
 
-        verify(applicationRepository).findByStatusAndReview_Marketing_Branch_BranchId(
-                LoanStatus.PENDING_BACK_OFFICE, 5, PAGE);
+        verify(applicationRepository).findBucket(LoanStatus.PENDING_BACK_OFFICE, 5, PAGE);
     }
 
     @Test
@@ -363,12 +376,14 @@ class LoanApplicationServiceTest {
     @Test
     @DisplayName("the role name is matched case insensitively when routing to a bucket")
     void bucketRoutingIsCaseInsensitive() {
-        when(applicationRepository.findByStatus(LoanStatus.CHECKING, PAGE)).thenReturn(onePage());
+        User marketing = TestFixtures.user(RoleName.MARKETING, 5);
+        when(userRepository.findById(TestFixtures.USER_ID)).thenReturn(Optional.of(marketing));
+        when(applicationRepository.findBucket(LoanStatus.CHECKING, 5, PAGE)).thenReturn(onePage());
         stubMapper();
 
         service.getMyBucket(TestFixtures.USER_ID, "  marketing  ", PAGE);
 
-        verify(applicationRepository).findByStatus(LoanStatus.CHECKING, PAGE);
+        verify(applicationRepository).findBucket(LoanStatus.CHECKING, 5, PAGE);
     }
 
     @Test

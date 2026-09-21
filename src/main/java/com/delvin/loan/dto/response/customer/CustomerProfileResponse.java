@@ -30,6 +30,9 @@ public class CustomerProfileResponse {
     private String occupation;
     private String citizenship;
 
+    private Integer branchId;
+    private String branchName;
+
     private BigDecimal approvedLimit;
     private BigDecimal usedLimit;
     private BigDecimal availableLimit;

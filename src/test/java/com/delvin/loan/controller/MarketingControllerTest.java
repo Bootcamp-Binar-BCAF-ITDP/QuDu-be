@@ -54,10 +54,10 @@ class MarketingControllerTest {
     void bucketReturnsApplications() {
         PageResponse<LoanApplicationResponse> page =
                 new PageResponse<>(List.of(mock(LoanApplicationResponse.class)), 0, 10, 1, 1, true, true, false);
-        when(applicationService.listMarketingBucket(PAGE)).thenReturn(page);
+        when(applicationService.listMarketingBucket(TestFixtures.USER_ID, PAGE)).thenReturn(page);
 
         ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> result =
-                controller.marketingBucket(PAGE);
+                controller.marketingBucket(marketingPrincipal(), PAGE);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(result.getBody().getMessage()).isEqualTo("Marketing bucket retrieved");
@@ -67,11 +67,11 @@ class MarketingControllerTest {
     @Test
     @DisplayName("an empty bucket is a 200, not an error")
     void emptyBucketIsStillOk() {
-        when(applicationService.listMarketingBucket(PAGE))
+        when(applicationService.listMarketingBucket(TestFixtures.USER_ID, PAGE))
                 .thenReturn(new PageResponse<>(List.of(), 0, 10, 0, 0, true, true, true));
 
         ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> result =
-                controller.marketingBucket(PAGE);
+                controller.marketingBucket(marketingPrincipal(), PAGE);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(result.getBody().getData().getContent()).isEmpty();

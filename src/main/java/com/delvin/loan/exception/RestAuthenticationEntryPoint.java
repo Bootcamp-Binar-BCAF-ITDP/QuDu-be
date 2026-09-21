@@ -10,10 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
-/**
- * 401 for a protected route called without a usable token. Replaces
- * HttpStatusEntryPoint, which answered with the right status and an empty body.
- */
 @Component
 @RequiredArgsConstructor
 public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
