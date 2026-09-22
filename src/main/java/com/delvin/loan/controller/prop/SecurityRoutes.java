@@ -8,9 +8,7 @@ public class SecurityRoutes {
     public static final String[] PUBLIC = {
             "/api/auth/**",
             "/api/dashboard/**",
-
             "/api/plafonds/catalog",
-
             "/api/branches/options"
     };
 
@@ -23,7 +21,6 @@ public class SecurityRoutes {
 
     public static final String[] CUSTOMER = {
         "/api/customer/**"
-
     };
 
     public static final String[] LOAN_APPLICATIONS = {

@@ -1,5 +1,8 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.CacheNames;
+import com.delvin.loan.common.evict.EvictsApplicationCaches;
+import org.springframework.cache.annotation.Cacheable;
 import com.delvin.loan.common.DocumentType;
 import com.delvin.loan.common.LoanStatus;
 import com.delvin.loan.common.LoanNotificationText;
@@ -47,6 +50,7 @@ public class CustomerService {
     private final CustomerDocumentService customerDocumentService;
     private final CreditLimitService creditLimitService;
 
+    @EvictsApplicationCaches
     @Transactional
     public LoanApplicationResponse createApplication(LoanApplicationCreateRequest request) {
         Customer customer = customerRepository.findById(request.getCustomerId())
@@ -131,6 +135,7 @@ public class CustomerService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheNames.CUSTOMER_PLAFOND, key = "#customerId")
     public CustomerPlafondResponse getMyPlafond(String customerId) {
 
         Customer customer = findCustomer(customerId);

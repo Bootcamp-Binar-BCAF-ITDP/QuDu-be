@@ -7,11 +7,8 @@ public final class CacheNames {
 
     // Plafond
     public static final String PLAFOND_CATALOG = "plafond:catalog";
-
     public static final String PLAFOND_BY_ID = "plafond:byId";
-
     public static final String PLAFOND_BY_LEVEL = "plafond:byLevel";
-
     public static final String PLAFOND_PAGE = "plafond:page";
 
     // Branch
@@ -30,4 +27,13 @@ public final class CacheNames {
     public static final String MENU_OPTIONS = "menu:menuOptions";
     public static final String MENU_BY_ID = "menu:byId";
 
+    // User
+    public static final String USER_PAGE = "user:page";
+    public static final String USER_BY_ID = "user:byId";
+
+    public static final String APPLICATION_PAGE = "application:page";
+
+    public static final String APPLICATION_BY_CUSTOMER = "application:byCustomer";
+
+    public static final String CUSTOMER_PLAFOND = "customer:plafond";
 }

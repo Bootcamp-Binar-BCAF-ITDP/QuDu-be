@@ -1,15 +1,28 @@
 package com.delvin.loan.configuration;
 
+import com.delvin.loan.common.AccountType;
 import com.delvin.loan.common.CacheNames;
 import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.common.evict.EvictsRoleCaches;
+import com.delvin.loan.common.evict.EvictsApplicationCaches;
+import com.delvin.loan.common.evict.EvictsUserCaches;
 import com.delvin.loan.common.evict.EvictsBranchCaches;
 import com.delvin.loan.common.evict.EvictsPlafondCaches;
+import com.delvin.loan.dto.request.auth.RegisterRequest;
 import com.delvin.loan.dto.response.plafond.PlafondResponse;
+import com.delvin.loan.service.AuthService;
+import com.delvin.loan.service.BranchManagerService;
 import com.delvin.loan.service.BranchService;
+import com.delvin.loan.service.CustomerService;
+import com.delvin.loan.service.LoanApplicationService;
+import com.delvin.loan.service.LoanDisbursementService;
+import com.delvin.loan.service.LoanDocumentService;
+import com.delvin.loan.service.LoanReviewService;
+import com.delvin.loan.service.LoanVerificationService;
 import com.delvin.loan.service.MenuService;
 import com.delvin.loan.service.PlafondService;
 import com.delvin.loan.service.RoleService;
+import com.delvin.loan.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.Cache;
@@ -19,6 +32,9 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.cache.interceptor.KeyGenerator;
 import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.expression.Expression;
+import org.springframework.expression.spel.standard.SpelExpressionParser;
+import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -28,9 +44,11 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -341,13 +359,181 @@ class RedisConfigTest {
         assertThat(((PageResponse<?>) back).getTotalElements()).isEqualTo(1);
     }
 
-    /**
-     * A no-argument @Cacheable holds one value, and those caches are registered
-     * with singleEntry(), whose prefix has no trailing "::". Forget the empty
-     * key and Spring falls back to SimpleKey.EMPTY, gluing the two together
-     * into "qudu::plafond:catalogSimpleKey []". Verified by running the two
-     * configurations side by side, 2026-09-21.
-     */
+    @Test
+    @DisplayName("registering a USER evicts the user caches; registering a CUSTOMER does not")
+    void registerEvictsForStaffOnly() throws Exception {
+
+        Caching caching = AuthService.class
+                .getDeclaredMethod("register", RegisterRequest.class)
+                .getAnnotation(Caching.class);
+
+        assertThat(caching).as("@Caching on AuthService.register").isNotNull();
+
+        assertThat(Arrays.stream(caching.evict()).map(evict -> evict.cacheNames()[0]))
+                .containsExactlyInAnyOrder(CacheNames.USER_PAGE, CacheNames.USER_BY_ID);
+
+        RegisterRequest staff = new RegisterRequest();
+        staff.setAccountType(AccountType.USER);
+
+        RegisterRequest customer = new RegisterRequest();
+        customer.setAccountType(AccountType.CUSTOMER);
+
+        SpelExpressionParser parser = new SpelExpressionParser();
+
+        for (CacheEvict evict : caching.evict()) {
+
+            assertThat(evict.allEntries())
+                    .as("a new user can appear on any page, so all entries go")
+                    .isTrue();
+            assertThat(evict.beforeInvocation())
+                    .as("a rejected registration must not clear the cache")
+                    .isFalse();
+
+            Expression condition = parser.parseExpression(evict.condition());
+
+            StandardEvaluationContext staffContext = new StandardEvaluationContext();
+            staffContext.setVariable("request", staff);
+            assertThat(condition.getValue(staffContext, Boolean.class))
+                    .as("condition is true for a staff registration")
+                    .isTrue();
+
+            StandardEvaluationContext customerContext = new StandardEvaluationContext();
+            customerContext.setVariable("request", customer);
+            assertThat(condition.getValue(customerContext, Boolean.class))
+                    .as("condition is false for a customer registration")
+                    .isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("the register eviction sits on the public method, where the proxy can see it")
+    void registerEvictionIsOnThePublicMethod() {
+
+        List<String> annotatedPrivates = Arrays.stream(AuthService.class.getDeclaredMethods())
+                .filter(method -> !java.lang.reflect.Modifier.isPublic(method.getModifiers()))
+                .filter(method -> AnnotatedElementUtils.hasAnnotation(method, Caching.class)
+                        || AnnotatedElementUtils.hasAnnotation(method, CacheEvict.class))
+                .map(java.lang.reflect.Method::getName)
+                .toList();
+
+        assertThat(annotatedPrivates)
+                .as("non-public AuthService methods carrying cache annotations (they would never run)")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("every step of the loan workflow evicts the application caches")
+    void everyWorkflowStepEvicts() {
+
+        Map<Class<?>, Set<String>> writeMethods = Map.of(
+                CustomerService.class, Set.of("createApplication"),
+                LoanReviewService.class, Set.of("submitReview"),
+                BranchManagerService.class, Set.of("branchManagerDecision", "decidePlafondRequest"),
+                LoanVerificationService.class, Set.of("submitVerification"),
+                LoanDisbursementService.class, Set.of("disburse"),
+                LoanDocumentService.class, Set.of("uploadDocument", "uploadOwnDocument"));
+
+        List<String> unguarded = writeMethods.entrySet().stream()
+                .flatMap(entry -> Arrays.stream(entry.getKey().getDeclaredMethods())
+                        .filter(method -> entry.getValue().contains(method.getName()))
+                        .filter(method -> !AnnotatedElementUtils.hasAnnotation(
+                                method, EvictsApplicationCaches.class))
+                        .map(method -> entry.getKey().getSimpleName() + "." + method.getName()))
+                .toList();
+
+        assertThat(unguarded)
+                .as("workflow steps without @EvictsApplicationCaches")
+                .isEmpty();
+
+        writeMethods.forEach((type, names) -> {
+            Set<String> declared = Arrays.stream(type.getDeclaredMethods())
+                    .map(Method::getName)
+                    .collect(java.util.stream.Collectors.toSet());
+            assertThat(declared).as(type.getSimpleName()).containsAll(names);
+        });
+    }
+
+    @Test
+    @DisplayName("the application caches clear the staff list, the customer list and the limits together")
+    void applicationEvictionCoversAllThree() {
+
+        Caching caching = EvictsApplicationCaches.class.getAnnotation(Caching.class);
+
+        assertThat(Arrays.stream(caching.evict()).map(evict -> evict.cacheNames()[0]))
+                .containsExactlyInAnyOrder(
+                        CacheNames.APPLICATION_PAGE,
+                        CacheNames.APPLICATION_BY_CUSTOMER,
+                        CacheNames.CUSTOMER_PLAFOND);
+
+        assertThat(caching.evict()).allMatch(CacheEvict::allEntries);
+    }
+
+    @Test
+    @DisplayName("a status filter is a set: order does not create a second key")
+    void statusFilterOrderDoesNotMatter() throws Exception {
+
+        PageCacheKeyGenerator generator = new PageCacheKeyGenerator();
+        Method method = LoanApplicationService.class.getDeclaredMethod(
+                "getAllApplication", List.class, String.class, LocalDate.class,
+                LocalDate.class, Pageable.class);
+        Pageable page = PageRequest.of(0, 10);
+
+        Object ascending = generator.generate(null, method,
+                List.of("CHECKING", "VERIFIED"), null, null, null, page);
+        Object descending = generator.generate(null, method,
+                List.of("VERIFIED", "CHECKING"), null, null, null, page);
+
+        assertThat(ascending).isEqualTo(descending);
+        assertThat(ascending).isEqualTo("search=checking+verified,*,*,*|page=0|size=10|sort=none");
+    }
+
+    @Test
+    @DisplayName("the date range is part of the key")
+    void dateRangeIsPartOfTheKey() throws Exception {
+
+        PageCacheKeyGenerator generator = new PageCacheKeyGenerator();
+        Method method = LoanApplicationService.class.getDeclaredMethod(
+                "getAllApplication", List.class, String.class, LocalDate.class,
+                LocalDate.class, Pageable.class);
+        Pageable page = PageRequest.of(0, 10);
+
+        Object january = generator.generate(null, method, null, null,
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), page);
+        Object february = generator.generate(null, method, null, null,
+                LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28), page);
+
+        assertThat(january).isNotEqualTo(february);
+    }
+
+    @Test
+    @DisplayName("one customer's history never serves another's")
+    void customerHistoryIsKeyedByCustomer() throws Exception {
+
+        PageCacheKeyGenerator generator = new PageCacheKeyGenerator();
+        Method method = LoanApplicationService.class.getDeclaredMethod(
+                "listByCustomer", String.class, Pageable.class);
+        Pageable page = PageRequest.of(0, 10);
+
+        assertThat(generator.generate(null, method, "CUST-001", page))
+                .isNotEqualTo(generator.generate(null, method, "CUST-002", page));
+    }
+
+    @Test
+    @DisplayName("every user write evicts the user caches")
+    void everyUserWriteEvicts() {
+
+        Set<String> writeMethods = Set.of("updateUser", "deleteUser");
+
+        List<Method> unguarded = Arrays.stream(UserService.class.getDeclaredMethods())
+                .filter(method -> writeMethods.contains(method.getName()))
+                .filter(method -> !AnnotatedElementUtils.hasAnnotation(method, EvictsUserCaches.class))
+                .toList();
+
+        assertThat(unguarded)
+                .as("user write methods without @EvictsUserCaches")
+                .isEmpty();
+    }
+
     @Test
     @DisplayName("every role write evicts the role caches")
     void everyRoleWriteEvicts() {

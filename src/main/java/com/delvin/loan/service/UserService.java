@@ -1,6 +1,8 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.CacheNames;
 import com.delvin.loan.common.PageResponse;
+import com.delvin.loan.common.evict.EvictsUserCaches;
 import com.delvin.loan.dto.request.user.UserRequest;
 import com.delvin.loan.dto.response.user.UserResponse;
 import com.delvin.loan.model.Branch;
@@ -10,6 +12,7 @@ import com.delvin.loan.repository.BranchRepository;
 import com.delvin.loan.repository.RoleRepository;
 import com.delvin.loan.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,24 +26,24 @@ public class UserService {
     private final BranchRepository branchRepository;
     private final RoleRepository roleRepository;
 
+    @Cacheable(cacheNames = CacheNames.USER_PAGE, keyGenerator = "pageKeyGenerator")
     @Transactional(readOnly = true)
     public PageResponse<UserResponse> getAllUsers(String search, Pageable pageable) {
-
         Page<User> users = userRepository.findAllByStatusIsActive(toKeyword(search), pageable);
 
         return PageResponse.of(users, this::toResponse);
     }
 
+    @Cacheable(cacheNames = CacheNames.USER_BY_ID, key = "#id")
     public UserResponse getUserById(String id) {
-
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         return toResponse(user);
     }
 
-
     @Transactional
+    @EvictsUserCaches
     public UserResponse updateUser(String id, UserRequest request) {
 
         User user = userRepository.findById(id)
@@ -78,8 +81,8 @@ public class UserService {
     }
 
     @Transactional
+    @EvictsUserCaches
     public void deleteUser(String id) {
-
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 

@@ -3,9 +3,12 @@ package com.delvin.loan.configuration;
 import com.delvin.loan.common.CacheNames;
 import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.dto.response.branch.BranchResponse;
+import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
 import com.delvin.loan.dto.response.menu.MenuResponse;
+import com.delvin.loan.dto.response.plafond.CustomerPlafondResponse;
 import com.delvin.loan.dto.response.plafond.PlafondResponse;
 import com.delvin.loan.dto.response.role.RoleResponse;
+import com.delvin.loan.dto.response.user.UserResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.cache.autoconfigure.RedisCacheManagerBuilderCustomizer;
@@ -38,6 +41,7 @@ public class RedisConfig implements CachingConfigurer {
     private static final Duration CATALOG_TTL = Duration.ofMinutes(30);
 
     private static final Duration PAGE_TTL = Duration.ofMinutes(2);
+    private static final Duration VOLATILE_TTL = Duration.ofMinutes(1);
 
     @Bean
     public RedisCacheConfiguration cacheConfiguration() {
@@ -69,13 +73,24 @@ public class RedisConfig implements CachingConfigurer {
                         singleEntry(typed(baseConfiguration(CATALOG_TTL), listOf(MenuResponse.class))))
                 .withCacheConfiguration(CacheNames.MENU_BY_ID,
                         typed(baseConfiguration(DEFAULT_TTL), typeOf(MenuResponse.class)))
-                // Paged listings, keyed by PageCacheKeyGenerator
+                // User
+                .withCacheConfiguration(CacheNames.USER_BY_ID,
+                        typed(baseConfiguration(DEFAULT_TTL), typeOf(UserResponse.class)))
+                // Paged listings
                 .withCacheConfiguration(CacheNames.PLAFOND_PAGE,
                         typed(baseConfiguration(PAGE_TTL), pageOf(PlafondResponse.class)))
                 .withCacheConfiguration(CacheNames.ROLE_PAGE,
                         typed(baseConfiguration(PAGE_TTL), pageOf(RoleResponse.class)))
                 .withCacheConfiguration(CacheNames.BRANCH_PAGE,
                         typed(baseConfiguration(PAGE_TTL), pageOf(BranchResponse.class)))
+                .withCacheConfiguration(CacheNames.USER_PAGE,
+                        typed(baseConfiguration(PAGE_TTL), pageOf(UserResponse.class)))
+                .withCacheConfiguration(CacheNames.APPLICATION_PAGE,
+                        typed(baseConfiguration(VOLATILE_TTL), pageOf(LoanApplicationResponse.class)))
+                .withCacheConfiguration(CacheNames.APPLICATION_BY_CUSTOMER,
+                        typed(baseConfiguration(VOLATILE_TTL), pageOf(LoanApplicationResponse.class)))
+                .withCacheConfiguration(CacheNames.CUSTOMER_PLAFOND,
+                        typed(baseConfiguration(VOLATILE_TTL), typeOf(CustomerPlafondResponse.class)))
                 ;
     }
 

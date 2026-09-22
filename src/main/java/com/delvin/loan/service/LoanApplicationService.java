@@ -1,5 +1,8 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.CacheNames;
+import com.delvin.loan.common.evict.EvictsApplicationCaches;
+import org.springframework.cache.annotation.Cacheable;
 import com.delvin.loan.common.LoanStatus;
 import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.common.RoleName;
@@ -36,6 +39,7 @@ public class LoanApplicationService {
     private final LoanMapper mapper;
     private final CreditScoreService creditScoreService;
 
+    @Cacheable(cacheNames = CacheNames.APPLICATION_PAGE, keyGenerator = "pageKeyGenerator")
     @Transactional(readOnly = true)
     public PageResponse<LoanApplicationResponse> getAllApplication(
             List<String> statuses, String search, LocalDate from, LocalDate to, Pageable pageable) {
@@ -113,6 +117,7 @@ public class LoanApplicationService {
         return creditScoreService.evaluate(getApplicationOrThrow(applicationId));
     }
 
+    @Cacheable(cacheNames = CacheNames.APPLICATION_BY_CUSTOMER, keyGenerator = "pageKeyGenerator")
     public PageResponse<LoanApplicationResponse> listByCustomer(String customerId, Pageable pageable) {
         return PageResponse.of(
                 applicationRepository.findByCustomer_CustomerId(customerId, pageable),
