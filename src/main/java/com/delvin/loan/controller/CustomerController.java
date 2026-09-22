@@ -57,6 +57,7 @@ public class CustomerController {
                 customerService.createApplication(request));
     }
 
+    // Application History
     @GetMapping("/customer/{customerId}")
     public ResponseEntity<ApiResponse<PageResponse<LoanApplicationResponse>>> listByCustomer(
             @AuthenticationPrincipal AppUser appUser,
@@ -205,7 +206,6 @@ public class CustomerController {
     }
 
     private void requireSelf(AppUser appUser, String customerId) {
-
         if (appUser == null) {
             throw BusinessException.unauthorized("Not authenticated");
         }

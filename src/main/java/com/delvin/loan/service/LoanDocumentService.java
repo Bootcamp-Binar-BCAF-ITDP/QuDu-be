@@ -1,5 +1,8 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.CacheNames;
+import com.delvin.loan.common.evict.EvictsApplicationCaches;
+import org.springframework.cache.annotation.Cacheable;
 import com.delvin.loan.common.DocumentRules;
 import com.delvin.loan.common.DocumentType;
 import com.delvin.loan.dto.response.loanresp.LoanDocumentResponse;
@@ -29,6 +32,7 @@ public class LoanDocumentService {
     private final DocumentStorageService storage;
     private final LoanMapper mapper;
 
+    @EvictsApplicationCaches
     @Transactional
     public LoanDocumentResponse uploadDocument(String applicationId, String documentType, MultipartFile file) {
         DocumentRules.validate(file);
@@ -50,6 +54,7 @@ public class LoanDocumentService {
         return mapper.toDocumentResponse(document);
     }
 
+    @EvictsApplicationCaches
     @Transactional
     public LoanDocumentResponse uploadOwnDocument(String customerId, String applicationId,
                                                  String documentType, MultipartFile file) {

@@ -1,6 +1,8 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.CacheNames;
 import com.delvin.loan.common.PageResponse;
+import com.delvin.loan.common.evict.EvictsRoleCaches;
 import com.delvin.loan.dto.request.role.RoleRequest;
 import com.delvin.loan.dto.response.menu.MenuResponse;
 import com.delvin.loan.dto.response.role.RoleResponse;
@@ -11,6 +13,7 @@ import com.delvin.loan.repository.MenuRepository;
 import com.delvin.loan.repository.RoleMenuRepository;
 import com.delvin.loan.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,7 @@ public class RoleService {
     private final MenuRepository menuRepository;
     private final RoleMenuRepository roleMenuRepository;
 
+    @Cacheable(cacheNames = CacheNames.ROLE_PAGE, keyGenerator = "pageKeyGenerator")
     @Transactional(readOnly = true)
     public PageResponse<RoleResponse> getAllRoles(String search, Pageable pageable) {
 
@@ -71,6 +75,7 @@ public class RoleService {
         return toResponse(role);
     }
 
+    @EvictsRoleCaches
     @Transactional
     public RoleResponse createRole(RoleRequest request) {
 
@@ -102,6 +107,7 @@ public class RoleService {
         return toResponse(savedRole);
     }
 
+    @EvictsRoleCaches
     @Transactional
     public RoleResponse updateRole(Integer id, RoleRequest request) {
 
@@ -133,6 +139,7 @@ public class RoleService {
         return toResponse(savedRole);
     }
 
+    @EvictsRoleCaches
     @Transactional
     public void deleteRole(Integer id) {
 

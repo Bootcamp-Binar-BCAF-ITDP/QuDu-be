@@ -44,6 +44,7 @@ HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-240}"
 CURRENT_FILE="$DEPLOY_DIR/.image-current"
 APP_CONTAINER=qudu-be
 DB_CONTAINER=qudu-be-db
+REDIS_CONTAINER=qudu-be-redis
 # uid of the `qudu` user inside the image (Dockerfile).
 APP_UID=1001
 
@@ -184,6 +185,19 @@ wait_healthy "$DB_CONTAINER" 120 || {
     dk logs --tail 60 "$DB_CONTAINER" || true
     die "PostgreSQL did not become healthy."
 }
+
+# ------------------------------------------------------------------ cache ----
+
+# Started before the app, which declares depends_on: redis healthy. A cache
+# that will not start is a warning, not a failed deploy: the app falls back to
+# PostgreSQL on every lookup (RedisConfig.errorHandler).
+say "Cache"
+if compose "$IMAGE" up -d --no-build redis; then
+    wait_healthy "$REDIS_CONTAINER" 60 \
+        || warn "Redis did not become healthy; the app will run without a cache."
+else
+    warn "Redis could not be started; the app will run without a cache."
+fi
 
 dbq() {
     dk exec -i "$DB_CONTAINER" sh -c \

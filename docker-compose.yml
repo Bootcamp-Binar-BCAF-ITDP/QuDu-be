@@ -8,8 +8,6 @@ services:
     container_name: qudu-be
     restart: unless-stopped
 
-    # .env on the server. The local stack (scripts/docker-local.sh) points this at
-    # .env.local, so testing on a laptop never touches the real settings.
     env_file:
       - ${ENV_FILE:-.env}
 

@@ -1,6 +1,7 @@
 package com.delvin.loan.service;
 
 import com.delvin.loan.common.AccountType;
+import com.delvin.loan.common.CacheNames;
 import com.delvin.loan.common.OtpCodes;
 import com.delvin.loan.dto.response.auth.RegisterResponse;
 import com.delvin.loan.dto.response.menu.MenuResponse;
@@ -12,6 +13,8 @@ import com.delvin.loan.model.*;
 import com.delvin.loan.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -60,6 +63,12 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final AppUserDetailsService appUserDetailsService;
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.USER_PAGE, allEntries = true,
+                    condition = "#request.accountType == T(com.delvin.loan.common.AccountType).USER"),
+            @CacheEvict(cacheNames = CacheNames.USER_BY_ID, allEntries = true,
+                    condition = "#request.accountType == T(com.delvin.loan.common.AccountType).USER"),
+    })
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
 

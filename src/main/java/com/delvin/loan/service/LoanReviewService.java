@@ -1,5 +1,8 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.CacheNames;
+import com.delvin.loan.common.evict.EvictsApplicationCaches;
+import org.springframework.cache.annotation.Cacheable;
 import com.delvin.loan.common.LoanStatus;
 import com.delvin.loan.common.RecommendationStatus;
 import com.delvin.loan.common.RoleName;
@@ -28,6 +31,7 @@ public class LoanReviewService {
     private final ApplicationEventPublisher events;
     private final BranchRouting branchRouting;
 
+    @EvictsApplicationCaches
     @Transactional
     public LoanReviewResponse submitReview(String marketingUserId, LoanReviewRequest request) {
 

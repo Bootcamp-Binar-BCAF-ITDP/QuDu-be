@@ -1,5 +1,8 @@
 package com.delvin.loan.service;
 
+import com.delvin.loan.common.CacheNames;
+import com.delvin.loan.common.evict.EvictsApplicationCaches;
+import org.springframework.cache.annotation.Cacheable;
 import com.delvin.loan.common.LoanStatus;
 import com.delvin.loan.common.PageResponse;
 import com.delvin.loan.common.PlafondRequestStatus;
@@ -54,6 +57,7 @@ public class BranchManagerService {
                 mapper::toApplicationResponse);
     }
 
+    @EvictsApplicationCaches
     @Transactional
     public LoanApplicationResponse branchManagerDecision(
             String branchManagerUserId,
@@ -140,6 +144,7 @@ public class BranchManagerService {
         return PageResponse.of(page, PlafondRequestResponse::from);
     }
 
+    @EvictsApplicationCaches
     @Transactional
     public PlafondRequestResponse decidePlafondRequest(String userId,
                                                        String requestId,
