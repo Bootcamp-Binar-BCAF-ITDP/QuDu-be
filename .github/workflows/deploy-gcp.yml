@@ -132,7 +132,7 @@ jobs:
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
 
-          APP_PORT: ${{ vars.APP_PORT || '80' }}
+          APP_PORT: ${{ vars.APP_PORT || '127.0.0.1:8080' }}
           CORS_ALLOWED_ORIGIN: ${{ vars.CORS_ALLOWED_ORIGIN || 'https://quick-duit.profilku.site' }}
           FRONTEND_RESET_PASSWORD_URL: ${{ vars.FRONTEND_RESET_PASSWORD_URL || 'https://quick-duit.profilku.site/reset-password/{token}' }}
           JWT_TTL_MINUTES: ${{ vars.JWT_TTL_MINUTES || '30' }}
@@ -262,37 +262,20 @@ jobs:
           IMAGE: ${{ steps.rel.outputs.image }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ALLOW_EMPTY_DB: ${{ vars.ALLOW_EMPTY_DB || 'false' }}
-          CLOUDFLARE_TUNNEL: ${{ vars.CLOUDFLARE_TUNNEL || 'on' }}
         run: |
           set -o pipefail
           printf '%s\n' "$GHCR_TOKEN" | ssh vm \
-            "ALLOW_EMPTY_DB='$ALLOW_EMPTY_DB' CLOUDFLARE_TUNNEL='$CLOUDFLARE_TUNNEL' bash '$DEPLOY_DIR/scripts/gcp-deploy.sh' '$IMAGE' '${{ github.actor }}'" \
+            "ALLOW_EMPTY_DB='$ALLOW_EMPTY_DB' bash '$DEPLOY_DIR/scripts/gcp-deploy.sh' '$IMAGE' '${{ github.actor }}'" \
             | tee .deploy/deploy.log
 
-          echo "tunnel_url=$(sed -n 's/^PUBLIC_URL=//p' .deploy/deploy.log | tail -1)" >> "$GITHUB_OUTPUT"
-          echo "tunnel_mode=$(sed -n 's/^TUNNEL_MODE=//p' .deploy/deploy.log | tail -1)" >> "$GITHUB_OUTPUT"
-
+      # Sejak 2026-09-22 VM ini punya domain sendiri di belakang nginx, jadi URL
+      # publiknya tetap — tidak lagi URL acak dari Cloudflare yang berubah tiap
+      # container tunnel restart.
       - name: Buktikan dari internet publik
         env:
-          GCP_HOST: ${{ secrets.GCP_HOST }}
-          APP_PORT: ${{ vars.APP_PORT || '80' }}
-          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
-          TUNNEL_URL: ${{ steps.deploy.outputs.tunnel_url }}
-          TUNNEL_MODE: ${{ steps.deploy.outputs.tunnel_mode }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://api-gcp.profilku.site' }}
         run: |
-          base="${PUBLIC_BASE_URL:-$TUNNEL_URL}"
-          if [ -z "$base" ] && [ "$TUNNEL_MODE" = "quick" ]; then
-            echo "::error::Cloudflare tunnel jalan tetapi tidak memberi URL. Lihat bagian 'Cloudflare Tunnel' di log langkah sebelumnya."
-            exit 1
-          fi
-          if [ -z "$base" ]; then
-            case "$APP_PORT" in
-              80) base="http://$GCP_HOST" ;;
-              *[!0-9]*) echo "APP_PORT=$APP_PORT tidak publik dan PUBLIC_BASE_URL kosong; pemeriksaan dari luar dilewati."; exit 0 ;;
-              *) base="http://$GCP_HOST:$APP_PORT" ;;
-            esac
-          fi
-          url="${base%/}/api/plafonds/catalog"
+          url="${PUBLIC_BASE_URL%/}/api/plafonds/catalog"
 
           for i in $(seq 1 10); do
             # curl sudah mencetak 000 sendiri saat gagal terhubung; `|| echo 000`
@@ -304,11 +287,13 @@ jobs:
             fi
             sleep 3
           done
-          if [ -n "$TUNNEL_URL$PUBLIC_BASE_URL" ]; then
-            echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau (kode $code). Periksa bagian 'Cloudflare Tunnel' di log langkah sebelumnya. URL trycloudflare baru kadang butuh beberapa detik lagi; coba Re-run."
-          else
-            echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau dari luar (kode $code). Kode 000 = port $APP_PORT tertutup di firewall GCP. Nyalakan lagi tunnel (hapus variable CLOUDFLARE_TUNNEL atau isi 'on')."
-          fi
+
+          echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau dari luar (kode $code)."
+          echo "Kode 000 berarti koneksi tidak sampai. Urutan pemeriksaannya:"
+          echo "  1. Firewall GCP: port 443 (dan 80 untuk perpanjangan certbot) terbuka?"
+          echo "  2. nginx hidup di VM?            sudo systemctl status nginx"
+          echo "  3. nginx meneruskan ke aplikasi? curl -i http://127.0.0.1:8080/api/plafonds/catalog"
+          echo "  4. APP_PORT harus 127.0.0.1:8080 supaya nginx bisa memakai port 80/443."
           exit 1
 
       - name: Ringkasan
@@ -319,8 +304,7 @@ jobs:
             echo "|---|---|"
             echo "| Image | \`${{ steps.rel.outputs.image }}\` |"
             echo "| Commit | \`${GITHUB_SHA::12}\` |"
-            echo "| Tunnel | ${{ steps.deploy.outputs.tunnel_mode || '-' }} |"
-            echo "| URL publik | ${{ vars.PUBLIC_BASE_URL || steps.deploy.outputs.tunnel_url || '-' }} |"
+            echo "| URL publik | ${{ vars.PUBLIC_BASE_URL || 'https://api-gcp.profilku.site' }} |"
             echo "| Hasil | ${{ job.status }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
