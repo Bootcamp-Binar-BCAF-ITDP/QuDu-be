@@ -132,7 +132,7 @@ jobs:
           MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
           FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
 
-          APP_PORT: ${{ vars.APP_PORT || '80' }}
+          APP_PORT: ${{ vars.APP_PORT || '127.0.0.1:8080' }}
           CORS_ALLOWED_ORIGIN: ${{ vars.CORS_ALLOWED_ORIGIN || 'https://quick-duit.profilku.site' }}
           FRONTEND_RESET_PASSWORD_URL: ${{ vars.FRONTEND_RESET_PASSWORD_URL || 'https://quick-duit.profilku.site/reset-password/{token}' }}
           JWT_TTL_MINUTES: ${{ vars.JWT_TTL_MINUTES || '30' }}
@@ -256,11 +256,10 @@ jobs:
           IMAGE: ${{ steps.rel.outputs.image }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ALLOW_EMPTY_DB: ${{ vars.ALLOW_EMPTY_DB || 'false' }}
-          CLOUDFLARE_TUNNEL: ${{ vars.CLOUDFLARE_TUNNEL || 'on' }}
         run: |
           set -o pipefail
           printf '%s\n' "$GHCR_TOKEN" | ssh vm \
-            "ALLOW_EMPTY_DB='$ALLOW_EMPTY_DB' CLOUDFLARE_TUNNEL='$CLOUDFLARE_TUNNEL' bash '$DEPLOY_DIR/scripts/gcp-deploy.sh' '$IMAGE' '${{ github.actor }}'" \
+            "ALLOW_EMPTY_DB='$ALLOW_EMPTY_DB' bash '$DEPLOY_DIR/scripts/gcp-deploy.sh' '$IMAGE' '${{ github.actor }}'" \
             | tee .deploy/deploy.log
 
           echo "tunnel_url=$(sed -n 's/^PUBLIC_URL=//p' .deploy/deploy.log | tail -1)" >> "$GITHUB_OUTPUT"
@@ -268,11 +267,7 @@ jobs:
 
       - name: Verify from the public internet
         env:
-          GCP_HOST: ${{ secrets.GCP_HOST }}
-          APP_PORT: ${{ vars.APP_PORT || '80' }}
-          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
-          TUNNEL_URL: ${{ steps.deploy.outputs.tunnel_url }}
-          TUNNEL_MODE: ${{ steps.deploy.outputs.tunnel_mode }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://api-gcp.profilku.site' }}
         run: |
           base="${PUBLIC_BASE_URL:-$TUNNEL_URL}"
           if [ -z "$base" ] && [ "$TUNNEL_MODE" = "quick" ]; then

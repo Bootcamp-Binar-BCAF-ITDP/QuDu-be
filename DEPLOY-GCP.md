@@ -56,10 +56,9 @@ Setelah persiapan satu kali di bawah, cukup **push ke `main`**.
 4. `gcp-deploy.sh` di VM: memasang Docker kalau belum ada, menarik image,
    menyalakan PostgreSQL 18 (container `qudu-be-db`, volume `qudu-be_pgdata`),
    **me-restore dump sekali saja**, menukar container aplikasi, menunggu
-   `healthy`, rollback ke image sebelumnya kalau gagal, lalu menyalakan
-   Cloudflare quick tunnel (lihat *Akses publik lewat Cloudflare Tunnel*);
-5. memeriksa `<URL tunnel>/api/plafonds/catalog` dari internet, dan mencetak
-   URL itu di tabel *Ringkasan* run.
+   `healthy`, dan rollback ke image sebelumnya kalau gagal;
+5. memeriksa `https://api-gcp.profilku.site/api/plafonds/catalog` dari
+   internet — lihat *Akses publik: domain sendiri di belakang nginx*.
 
 Workflow ini **terpisah** dari `deploy.yml` (EC2). Selama keduanya aktif, satu
 push ke `main` men-deploy ke dua server. Untuk mematikan yang EC2, hapus blok
@@ -95,7 +94,8 @@ NIK nasabah dan hash password; aslinya tetap di laptop).
 | Port | Sumber | Untuk apa |
 |---|---|---|
 | 22 | `0.0.0.0/0` | runner GitHub tidak punya IP tetap |
-| 80 | `0.0.0.0/0` | aplikasi (`APP_PORT=80`, default) |
+| 80 | `0.0.0.0/0` | nginx, dan verifikasi certbot |
+| 443 | `0.0.0.0/0` | HTTPS |
 
 Port 5432 dan 8080 tidak perlu dibuka. PostgreSQL hanya terikat ke
 `127.0.0.1` di VM.
@@ -161,13 +161,12 @@ Firebase); workflow menolaknya dengan pesan jelas.
 |---|---|
 | `CORS_ALLOWED_ORIGIN` | `https://quick-duit.profilku.site` |
 | `FRONTEND_RESET_PASSWORD_URL` | `https://quick-duit.profilku.site/reset-password/{token}` |
-| `APP_PORT` | `80`. Pakai `127.0.0.1:8080` setelah ada nginx + HTTPS di VM |
-| `PUBLIC_BASE_URL` | `http://<GCP_HOST>`; set ke `https://api.domain-anda` setelah HTTPS |
+| `APP_PORT` | `127.0.0.1:8080` (default). Jangan diisi `80`: nginx yang memakai port itu |
+| `PUBLIC_BASE_URL` | `https://api-gcp.profilku.site` (default) |
 | `JWT_TTL_MINUTES` / `REFRESH_TTL_DAYS` | `30` / `7` |
 | `MAIL_HOST` / `MAIL_PORT` / `MAIL_FROM` | `smtp.gmail.com` / `587` / = `MAIL_USERNAME` |
 | `API_DOCS_ENABLED` | `true` |
 | `ALLOW_EMPTY_DB` | `false` |
-| `CLOUDFLARE_TUNNEL` | `on`; isi `off` untuk mematikan tunnel |
 
 **e. Dokumen upload** tidak ada di dump — hanya path-nya. Salin folder
 `uploads/` ke volume `qudu-be_uploads` seperti di §7.
@@ -187,48 +186,113 @@ Firebase); workflow menolaknya dengan pesan jelas.
   pembuatan paket di pengaturan org, bagian *Packages*.
 - VM hanya menyimpan image yang sedang jalan dan satu sebelumnya.
 
-### Akses publik lewat Cloudflare Tunnel
+### Akses publik: domain sendiri di belakang nginx
 
-Dipakai karena firewall GCP VM ini tidak bisa kita ubah (akses kita hanya SSH).
-Service `tunnel` di `docker-compose.gcp.yml` menjalankan **quick tunnel**
-`cloudflared` — tanpa akun Cloudflare, tanpa domain, tanpa token. Ia membuat
-koneksi **keluar** ke Cloudflare dan meneruskan ke `http://app:8080` lewat
-network compose, jadi tidak ada port masuk yang perlu dibuka, dan HTTPS didapat
-langsung.
+Sejak 22 September 2026 VM ini dijangkau lewat **`https://api-gcp.profilku.site`**
+(A record ke `34.171.0.24`, TTL 300). Cloudflare quick tunnel sudah dihapus:
+alamatnya acak dan berganti setiap container tunnel restart, jadi tidak bisa
+dipakai frontend Vercel maupun klien Android.
 
-**Alamatnya** acak, `https://<kata-kata>.trycloudflare.com`. Muncul di log
-langkah *Jalankan deploy di VM* dan di tabel *Ringkasan* setiap run. Di VM:
+Bentuknya sama seperti server EC2:
 
-```bash
-docker logs qudu-be-tunnel 2>&1 | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1
+```
+internet ──► nginx + certbot (host, :80 dan :443)
+                │ proxy_pass http://127.0.0.1:8080
+                ▼
+         container qudu-be   (APP_PORT=127.0.0.1:8080)
 ```
 
-**URL-nya berganti setiap container tunnel restart** — dibuat ulang, crash, atau
-VM reboot. Deploy aplikasi biasa tidak menyentuh container tunnel, jadi URL tetap
-selama itu. Karena itu quick tunnel cocok untuk mencoba API dan demo, bukan untuk
-alamat tetap di `environment.ts` frontend atau klien Android. Cloudflare juga
-tidak memberi jaminan uptime untuk quick tunnel.
+`APP_PORT` **harus** `127.0.0.1:8080`, bukan `80`. Kalau container tetap
+memegang port 80, nginx tidak bisa mengikatnya dan gagal start.
 
-Kenapa `http://app:8080` dan bukan `network_mode: host` + `localhost:8080`: di VM
-ini aplikasi dipublish ke port **80** host (`APP_PORT`), jadi `localhost:8080` di
-host kosong. Lewat nama service, tunnel selalu kena, berapa pun `APP_PORT`-nya.
+#### Persiapan satu kali
 
-Kalau nanti butuh alamat tetap: named tunnel Cloudflare (butuh domain di
-Cloudflare dan token), atau minta pemilik project GCP membuka port 80/443 lalu
-pasang nginx + certbot (§8). Setelah ada domain, isi variable `PUBLIC_BASE_URL`.
+Urutannya penting. Aplikasi baru pindah dari port 80 saat deploy, jadi nginx
+dipasang lebih dulu tetapi baru dinyalakan setelah port 80 bebas.
+
+**1. Firewall GCP** — buka `443` (ingress, `0.0.0.0/0`). Port `80` tetap perlu
+terbuka: certbot memakainya untuk verifikasi dan perpanjangan otomatis.
+
+**2. Di VM — pasang nginx dan certbot:**
+
+```bash
+sudo apt-get update
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+sudo systemctl stop nginx      # port 80 masih dipegang container
+```
+
+**3. Di VM — tulis konfigurasi situs:**
+
+```bash
+sudo tee /etc/nginx/sites-available/qudu-gcp > /dev/null <<'NGINX'
+server {
+    listen 80 default_server;
+    server_name api-gcp.profilku.site;
+
+    client_max_body_size 10M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINX
+
+sudo ln -sf /etc/nginx/sites-available/qudu-gcp /etc/nginx/sites-enabled/qudu-gcp
+sudo rm -f /etc/nginx/sites-enabled/default
+```
+
+**4. Di GitHub** — Settings → Secrets and variables → Actions → *Variables*:
+pastikan `APP_PORT` **tidak** bernilai `80`. Hapus variabelnya (defaultnya kini
+`127.0.0.1:8080`) atau isi `127.0.0.1:8080`.
+
+**5. Push ke `main`.** Deploy memindahkan aplikasi ke `127.0.0.1:8080`, sehingga
+port 80 kosong. Langkah *Buktikan dari internet publik* akan **gagal** di sini —
+itu wajar, nginx belum menyala.
+
+**6. Di VM — nyalakan nginx, lalu ambil sertifikat:**
+
+```bash
+sudo nginx -t && sudo systemctl enable --now nginx
+curl -i http://127.0.0.1:8080/api/plafonds/catalog     # aplikasi
+curl -i http://api-gcp.profilku.site/api/plafonds/catalog   # lewat nginx
+
+sudo certbot --nginx -d api-gcp.profilku.site --agree-tos --no-redirect -m <email-anda>
+```
+
+`--no-redirect` disengaja, sama seperti di EC2: redirect 301 mengubah POST milik
+klien Android menjadi GET, dan kegagalannya sulit dilacak.
+
+**7. Verifikasi, lalu jalankan ulang workflow** (Actions → *Deploy GCP* →
+*Re-run jobs*) supaya langkah pemeriksaan publik lewat:
+
+```bash
+curl -i https://api-gcp.profilku.site/api/plafonds/catalog
+sudo certbot renew --dry-run
+```
+
+#### Setelah HTTPS hidup
+
+- Arahkan `environment.ts` frontend dan `BASE_URL` Android ke
+  `https://api-gcp.profilku.site/` bila server ini yang dipakai.
+- Isi variable `CORS_ALLOWED_ORIGIN` sesuai origin frontend yang memanggilnya.
+- Sertifikat diperpanjang otomatis oleh timer `certbot.timer`; periksa dengan
+  `systemctl list-timers | grep certbot`.
 
 Bagian di bawah adalah jalur **manual** — untuk memahami apa yang dilakukan
 workflow, atau untuk memperbaiki VM dengan tangan.
 
 ---
-
 ## Bentuk yang akan Anda bangun
 
 ```
         internet
             │
      ┌──────┴──────┐
-     │    nginx    │   opsional, tapi wajib kalau mau HTTPS
+     │    nginx    │   api-gcp.profilku.site, TLS oleh certbot
      └──────┬──────┘
             │ 127.0.0.1:8080
      ┌──────┴──────────────┐
@@ -459,7 +523,7 @@ sudo apt-get install -y nginx certbot python3-certbot-nginx
 ```nginx
 server {
     listen 80 default_server;
-    server_name api.domain-anda.example;
+    server_name api-gcp.profilku.site;
 
     client_max_body_size 10M;
 
@@ -477,7 +541,7 @@ server {
 sudo ln -sf /etc/nginx/sites-available/qudu /etc/nginx/sites-enabled/qudu
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d api.domain-anda.example --agree-tos --no-redirect
+sudo certbot --nginx -d api-gcp.profilku.site --agree-tos --no-redirect
 ```
 
 `client_max_body_size 10M` penting: default nginx hanya 1 MB, dan upload dokumen
