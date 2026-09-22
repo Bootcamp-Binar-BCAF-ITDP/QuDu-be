@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Rollback: tag image yang sudah ada di GHCR (12 karakter awal SHA commit). Kosongkan untuk membangun commit ini.'
+        description: 'Rollback: tag of an image already in GHCR (first 12 characters of the commit SHA). Leave empty to build this commit.'
         required: false
         type: string
 
@@ -37,12 +37,12 @@ jobs:
           java-version: '25'
           cache: maven
 
-      - name: Test dan gerbang coverage
+      - name: Run tests and the coverage gate
         run: |
           chmod +x ./mvnw
           ./mvnw -B verify -Dtest='!LoanApplicationTests'
 
-      - name: Laporan test
+      - name: Publish test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -52,7 +52,7 @@ jobs:
           if-no-files-found: ignore
 
   image:
-    name: Bangun dan push image
+    name: Build and push image
     runs-on: ubuntu-latest
     needs: test
 
@@ -62,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Tentukan nama image
+      - name: Resolve image name
         id: meta
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
@@ -88,7 +88,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Tayangkan ke VM GCP
+    name: Deploy to GCP VM
     runs-on: ubuntu-latest
     needs: image
     if: always() && (needs.image.result == 'success' || github.event.inputs.image_tag != '')
@@ -100,7 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Tentukan image
+      - name: Resolve image
         id: rel
         env:
           ROLLBACK_TAG: ${{ github.event.inputs.image_tag }}
@@ -108,18 +108,18 @@ jobs:
         run: |
           if [ -n "$ROLLBACK_TAG" ]; then
             if [[ ! "$ROLLBACK_TAG" =~ ^[0-9a-f]{7,40}$ ]]; then
-              echo "::error::image_tag harus SHA commit (heksadesimal), bukan '$ROLLBACK_TAG'."
+              echo "::error::image_tag must be a hexadecimal commit SHA, not '$ROLLBACK_TAG'."
               exit 1
             fi
             image="ghcr.io/${GITHUB_REPOSITORY,,}:$ROLLBACK_TAG"
-            echo "Rollback ke $image"
+            echo "Rolling back to $image"
           else
             image="$BUILT_IMAGE"
-            echo "Deploy $image"
+            echo "Deploying $image"
           fi
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
-      - name: Rakit .env dari GitHub Secrets
+      - name: Build .env from GitHub Secrets
         env:
           GCP_HOST: ${{ secrets.GCP_HOST }}
           GCP_USER: ${{ secrets.GCP_USER }}
@@ -148,18 +148,18 @@ jobs:
             [ -n "${!name}" ] || missing="$missing $name"
           done
           if [ -n "$missing" ]; then
-            echo "::error::Secret belum diisi:$missing"
-            echo "Isi di Settings > Secrets and variables > Actions > Repository secrets."
+            echo "::error::Missing secrets:$missing"
+            echo "Set them in Settings > Secrets and variables > Actions > Repository secrets."
             exit 1
           fi
 
           if [ "${#JWT_SECRET}" -lt 32 ]; then
-            echo "::error::JWT_SECRET minimal 32 karakter. Buat dengan: openssl rand -hex 32"
+            echo "::error::JWT_SECRET must be at least 32 characters. Generate one with: openssl rand -hex 32"
             exit 1
           fi
 
           if [[ "$FRONTEND_RESET_PASSWORD_URL" != *"/{token}"* ]]; then
-            echo "::error::FRONTEND_RESET_PASSWORD_URL harus memuat {token} sebagai bagian path, mis. https://domain/reset-password/{token}"
+            echo "::error::FRONTEND_RESET_PASSWORD_URL must contain {token} as a path segment, e.g. https://domain/reset-password/{token}"
             exit 1
           fi
 
@@ -175,7 +175,7 @@ jobs:
           for k in $keys; do
             v="${!k}"
             if [[ "$v" == *"'"* || "$v" == *"$nl"* ]]; then
-              echo "::error::Nilai $k berisi kutip tunggal atau baris baru. Ganti nilainya."
+              echo "::error::The value of $k contains a single quote or a newline. Change the value."
               exit 1
             fi
           done
@@ -183,8 +183,6 @@ jobs:
           umask 077
           mkdir -p .deploy
           {
-            echo "# Dibuat oleh .github/workflows/deploy-gcp.yml — JANGAN diedit di VM,"
-            echo "# akan ditimpa pada deploy berikutnya. Ubah GitHub Secrets/Variables."
             for k in $keys; do printf "%s='%s'\n" "$k" "${!k}"; done
             echo "FIREBASE_CREDENTIALS_PATH='file:/app/secrets/firebase-credentials.json'"
           } > .deploy/.env
@@ -192,12 +190,12 @@ jobs:
           if [ "$FIREBASE_ENABLED" = true ]; then
             printf '%s\n' "$FIREBASE_CREDENTIALS_JSON" > .deploy/firebase-credentials.json
             jq empty .deploy/firebase-credentials.json \
-              || { echo "::error::FIREBASE_CREDENTIALS_JSON bukan JSON yang valid."; exit 1; }
+              || { echo "::error::FIREBASE_CREDENTIALS_JSON is not valid JSON."; exit 1; }
           fi
 
-          echo "Konfigurasi siap: $(echo $keys | wc -w) kunci, Firebase=$FIREBASE_ENABLED, APP_PORT=$APP_PORT"
+          echo "Configuration ready: $(echo $keys | wc -w) keys, Firebase=$FIREBASE_ENABLED, APP_PORT=$APP_PORT"
 
-      - name: Siapkan SSH
+      - name: Set up SSH
         env:
           GCP_SSH_KEY: ${{ secrets.GCP_SSH_KEY }}
           GCP_KNOWN_HOSTS: ${{ secrets.GCP_KNOWN_HOSTS }}
@@ -209,13 +207,13 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
 
           if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
-            echo "::error::GCP_SSH_KEY tidak terbaca sebagai kunci privat OpenSSH."
+            echo "::error::GCP_SSH_KEY could not be read as an OpenSSH private key."
             if grep -q 'PuTTY-User-Key-File' ~/.ssh/deploy_key; then
-              echo "Yang tersimpan format PuTTY (.ppk). Dibutuhkan format OpenSSH."
+              echo "The stored key is in PuTTY (.ppk) format. OpenSSH format is required."
             elif grep -q '^ssh-' ~/.ssh/deploy_key; then
-              echo "Yang tersimpan kunci PUBLIK. Dibutuhkan pasangan privatnya."
+              echo "The stored key is a PUBLIC key. Its private counterpart is required."
             else
-              echo "Baris pertama harus '-----BEGIN OPENSSH PRIVATE KEY-----'. Salin ulang utuh."
+              echo "The first line must be '-----BEGIN OPENSSH PRIVATE KEY-----'. Copy the whole key again."
             fi
             exit 1
           fi
@@ -230,9 +228,9 @@ jobs:
             ServerAliveInterval 15
           EOF
 
-          ssh vm 'echo "Terhubung ke $(hostname) sebagai $(id -un)"'
+          ssh vm 'echo "Connected to $(hostname) as $(id -un)"'
 
-      - name: Unggah berkas deploy
+      - name: Upload deploy files
         run: |
           ssh vm "set -e
             if [ ! -w '$DEPLOY_DIR' ]; then
@@ -244,19 +242,15 @@ jobs:
           scp -q docker-compose.yml docker-compose.gcp.yml "vm:$DEPLOY_DIR/"
           scp -q scripts/gcp-deploy.sh scripts/install-docker-debian.sh "vm:$DEPLOY_DIR/scripts/"
 
-          # Nama sementara dulu, baru di-rename: .env yang terunggah setengah
-          # tidak pernah terbaca compose.
           scp -q .deploy/.env "vm:$DEPLOY_DIR/.env.upload"
           ssh vm "chmod 600 '$DEPLOY_DIR/.env.upload' && mv '$DEPLOY_DIR/.env.upload' '$DEPLOY_DIR/.env'"
 
-          # Di luar secrets/: folder itu milik uid 1001 (user di dalam container)
-          # dan tidak bisa ditulis user login. gcp-deploy.sh yang memasangnya.
           if [ -f .deploy/firebase-credentials.json ]; then
             scp -q .deploy/firebase-credentials.json "vm:$DEPLOY_DIR/.firebase-credentials.upload"
             ssh vm "chmod 600 '$DEPLOY_DIR/.firebase-credentials.upload'"
           fi
 
-      - name: Jalankan deploy di VM
+      - name: Run deploy on VM
         id: deploy
         env:
           IMAGE: ${{ steps.rel.outputs.image }}
@@ -272,7 +266,7 @@ jobs:
           echo "tunnel_url=$(sed -n 's/^PUBLIC_URL=//p' .deploy/deploy.log | tail -1)" >> "$GITHUB_OUTPUT"
           echo "tunnel_mode=$(sed -n 's/^TUNNEL_MODE=//p' .deploy/deploy.log | tail -1)" >> "$GITHUB_OUTPUT"
 
-      - name: Buktikan dari internet publik
+      - name: Verify from the public internet
         env:
           GCP_HOST: ${{ secrets.GCP_HOST }}
           APP_PORT: ${{ vars.APP_PORT || '80' }}
@@ -282,36 +276,34 @@ jobs:
         run: |
           base="${PUBLIC_BASE_URL:-$TUNNEL_URL}"
           if [ -z "$base" ] && [ "$TUNNEL_MODE" = "quick" ]; then
-            echo "::error::Cloudflare tunnel jalan tetapi tidak memberi URL. Lihat bagian 'Cloudflare Tunnel' di log langkah sebelumnya."
+            echo "::error::The Cloudflare tunnel is running but did not report a URL. See the 'Cloudflare Tunnel' section in the previous step's log."
             exit 1
           fi
           if [ -z "$base" ]; then
             case "$APP_PORT" in
               80) base="http://$GCP_HOST" ;;
-              *[!0-9]*) echo "APP_PORT=$APP_PORT tidak publik dan PUBLIC_BASE_URL kosong; pemeriksaan dari luar dilewati."; exit 0 ;;
+              *[!0-9]*) echo "APP_PORT=$APP_PORT is not public and PUBLIC_BASE_URL is empty; skipping the external check."; exit 0 ;;
               *) base="http://$GCP_HOST:$APP_PORT" ;;
             esac
           fi
           url="${base%/}/api/plafonds/catalog"
 
           for i in $(seq 1 10); do
-            # curl sudah mencetak 000 sendiri saat gagal terhubung; `|| echo 000`
-            # di sini dulu menghasilkan "000000".
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url") || true
             if [ "$code" = "200" ]; then
-              echo "$url menjawab 200."
+              echo "$url answered 200."
               exit 0
             fi
             sleep 3
           done
           if [ -n "$TUNNEL_URL$PUBLIC_BASE_URL" ]; then
-            echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau (kode $code). Periksa bagian 'Cloudflare Tunnel' di log langkah sebelumnya. URL trycloudflare baru kadang butuh beberapa detik lagi; coba Re-run."
+            echo "::error::Healthy inside the VM but $url is unreachable (code $code). Check the 'Cloudflare Tunnel' section in the previous step's log. A new trycloudflare URL sometimes needs a few more seconds; try Re-run."
           else
-            echo "::error::Sehat di dalam VM tetapi $url tidak terjangkau dari luar (kode $code). Kode 000 = port $APP_PORT tertutup di firewall GCP. Nyalakan lagi tunnel (hapus variable CLOUDFLARE_TUNNEL atau isi 'on')."
+            echo "::error::Healthy inside the VM but $url is unreachable from outside (code $code). Code 000 means port $APP_PORT is closed in the GCP firewall. Turn the tunnel back on (delete the CLOUDFLARE_TUNNEL variable or set it to 'on')."
           fi
           exit 1
 
-      - name: Ringkasan
+      - name: Summary
         if: always()
         run: |
           {
@@ -320,10 +312,10 @@ jobs:
             echo "| Image | \`${{ steps.rel.outputs.image }}\` |"
             echo "| Commit | \`${GITHUB_SHA::12}\` |"
             echo "| Tunnel | ${{ steps.deploy.outputs.tunnel_mode || '-' }} |"
-            echo "| URL publik | ${{ vars.PUBLIC_BASE_URL || steps.deploy.outputs.tunnel_url || '-' }} |"
-            echo "| Hasil | ${{ job.status }} |"
+            echo "| Public URL | ${{ vars.PUBLIC_BASE_URL || steps.deploy.outputs.tunnel_url || '-' }} |"
+            echo "| Result | ${{ job.status }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Hapus kunci dan konfigurasi
+      - name: Remove key and configuration
         if: always()
         run: rm -rf ~/.ssh/deploy_key .deploy

@@ -1,34 +1,15 @@
 name: Deploy AWS
 
-# Setiap push ke main yang lolos test tayang ke EC2 (https://api.profilku.site),
-# dijalankan dengan Docker sejak 2026-09-19:
-#
-#   test  ->  image (dibangun di runner, di-push ke GHCR)  ->  deploy (EC2 menarik image)
-#
-# EC2 tidak pernah mem-build apa pun. Workflow ini mengunggah docker-compose.yml,
-# docker-compose.aws.yml, dan scripts/aws-deploy.sh ke /opt/qudu-be, lalu skrip
-# itu yang bekerja: tarik image, nyalakan PostgreSQL di container, tukar
-# container aplikasi, rollback kalau gagal. nginx + certbot tetap di host dan
-# meneruskan ke 127.0.0.1:8080.
-#
-# Konfigurasi (.env) MILIK SERVER, tidak dikirim dari GitHub: dibuat sekali dari
-# /etc/qudu-be.env saat migrasi, dan diedit langsung di /opt/qudu-be/.env.
-# Karena itu workflow ini hanya butuh empat secret EC2_*.
-#
-# Target lain (VM GCP) ada di deploy-gcp.yml. Panduan: DEPLOY.md.
-
 on:
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Rollback: tag image yang sudah ada di GHCR (12 karakter awal SHA commit). Kosongkan untuk membangun commit ini.'
+        description: 'Rollback: tag of an image already in GHCR (first 12 characters of the commit SHA). Leave empty to build this commit.'
         required: false
         type: string
 
-# Satu deploy pada satu waktu, dan jangan membatalkan yang sedang jalan:
-# pertukaran container yang terpotong meninggalkan server setengah jadi.
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -57,15 +38,12 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # verify, bukan package: gerbang coverage JaCoCo ikut menghentikan deploy.
-      # LoanApplicationTests butuh PostgreSQL sungguhan, jadi dilewati.
-      # chmod: git di Windows tidak merekam bit executable.
-      - name: Test dan gerbang coverage
+      - name: Run tests and the coverage gate
         run: |
           chmod +x ./mvnw
           ./mvnw -B verify -Dtest='!LoanApplicationTests'
 
-      - name: Laporan test
+      - name: Publish test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -75,7 +53,7 @@ jobs:
           if-no-files-found: ignore
 
   image:
-    name: Bangun dan push image
+    name: Build and push image
     runs-on: ubuntu-latest
     needs: test
 
@@ -85,8 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Nama image di GHCR wajib huruf kecil; nama repo org ini tidak.
-      - name: Tentukan nama image
+      - name: Resolve image name
         id: meta
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
@@ -101,9 +78,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Image yang sama persis dengan yang dibangun deploy-gcp.yml untuk commit
-      # ini (tag = SHA). .dockerignore mengeluarkan application.properties dan
-      # kredensial Firebase, jadi image tidak membawa secret apa pun.
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -115,7 +89,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Tayangkan ke EC2
+    name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: image
     if: always() && (needs.image.result == 'success' || github.event.inputs.image_tag != '')
@@ -129,9 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Tanpa ini, secret yang belum diisi baru ketahuan saat ssh dipanggil
-      # dengan tujuan "@" dan yang muncul hanyalah layar bantuan ssh, exit 255.
-      - name: Pastikan secret deploy sudah terisi
+      - name: Check deploy secrets are set
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
@@ -143,13 +115,13 @@ jobs:
             [ -n "${!name}" ] || missing="$missing $name"
           done
           if [ -n "$missing" ]; then
-            echo "::error::Secret deploy belum terisi:$missing"
-            echo "Isi di Settings > Secrets and variables > Actions. Job ini berjalan di"
-            echo "environment 'production'; repository secret juga terbaca."
+            echo "::error::Missing deploy secrets:$missing"
+            echo "Set them in Settings > Secrets and variables > Actions. This job runs in the"
+            echo "'production' environment; repository secrets are read as well."
             exit 1
           fi
 
-      - name: Tentukan image
+      - name: Resolve image
         id: rel
         env:
           ROLLBACK_TAG: ${{ github.event.inputs.image_tag }}
@@ -157,21 +129,18 @@ jobs:
         run: |
           if [ -n "$ROLLBACK_TAG" ]; then
             if [[ ! "$ROLLBACK_TAG" =~ ^[0-9a-f]{7,40}$ ]]; then
-              echo "::error::image_tag harus SHA commit (heksadesimal), bukan '$ROLLBACK_TAG'."
+              echo "::error::image_tag must be a hexadecimal commit SHA, not '$ROLLBACK_TAG'."
               exit 1
             fi
             image="ghcr.io/${GITHUB_REPOSITORY,,}:$ROLLBACK_TAG"
-            echo "Rollback ke $image"
+            echo "Rolling back to $image"
           else
             image="$BUILT_IMAGE"
-            echo "Deploy $image"
+            echo "Deploying $image"
           fi
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
-      # tr -d '\r': kunci yang disalin dari Windows membawa CRLF, dan OpenSSH
-      # menolaknya dengan "error in libcrypto" yang tidak menyebut sebabnya.
-      # Secret dibaca lewat env, tidak pernah disisipkan ke skrip.
-      - name: Siapkan SSH
+      - name: Set up SSH
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
@@ -185,15 +154,15 @@ jobs:
           chmod 644 ~/.ssh/known_hosts
 
           if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
-            echo "::error::EC2_SSH_KEY tidak terbaca sebagai kunci privat OpenSSH."
+            echo "::error::EC2_SSH_KEY could not be read as an OpenSSH private key."
             if grep -q 'PuTTY-User-Key-File' ~/.ssh/deploy_key; then
-              echo "Yang tersimpan format PuTTY (.ppk). Dibutuhkan format OpenSSH."
+              echo "The stored key is in PuTTY (.ppk) format. OpenSSH format is required."
             elif grep -q '^ssh-' ~/.ssh/deploy_key; then
-              echo "Yang tersimpan kunci PUBLIK. Dibutuhkan pasangan privatnya."
+              echo "The stored key is a PUBLIC key. Its private counterpart is required."
             elif [ "$(head -n 1 ~/.ssh/deploy_key)" != "-----BEGIN OPENSSH PRIVATE KEY-----" ]; then
-              echo "Baris pertama harus '-----BEGIN OPENSSH PRIVATE KEY-----'."
+              echo "The first line must be '-----BEGIN OPENSSH PRIVATE KEY-----'."
             else
-              echo "Kepala benar tapi isinya terpotong atau rusak saat disalin. Salin ulang utuh."
+              echo "The header is correct but the body was truncated or corrupted while copying. Copy the whole key again."
             fi
             exit 1
           fi
@@ -208,9 +177,9 @@ jobs:
             echo "  ServerAliveInterval 15"
           } > ~/.ssh/config
 
-          ssh server 'echo "Terhubung ke $(hostname) sebagai $(id -un)"'
+          ssh server 'echo "Connected to $(hostname) as $(id -un)"'
 
-      - name: Unggah berkas deploy
+      - name: Upload deploy files
         run: |
           ssh server "set -e
             if [ ! -w '$DEPLOY_DIR' ]; then
@@ -222,8 +191,7 @@ jobs:
           scp -q docker-compose.yml docker-compose.aws.yml "server:$DEPLOY_DIR/"
           scp -q scripts/aws-deploy.sh "server:$DEPLOY_DIR/scripts/"
 
-      # Token GHCR lewat stdin, bukan argumen, agar tidak terlihat di `ps`.
-      - name: Jalankan deploy di EC2
+      - name: Run deploy on EC2
         env:
           IMAGE: ${{ steps.rel.outputs.image }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -231,21 +199,20 @@ jobs:
           printf '%s\n' "$GHCR_TOKEN" | ssh server \
             "bash '$DEPLOY_DIR/scripts/aws-deploy.sh' '$IMAGE' '${{ github.actor }}'"
 
-      - name: Buktikan dari internet publik
+      - name: Verify from the public internet
         run: |
           for i in $(seq 1 10); do
-            # curl mencetak 000 sendiri saat gagal terhubung.
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$PUBLIC_URL") || true
             if [ "$code" = "200" ]; then
-              echo "$PUBLIC_URL menjawab 200."
+              echo "$PUBLIC_URL answered 200."
               exit 0
             fi
             sleep 3
           done
-          echo "::error::Sehat di server tetapi $PUBLIC_URL tidak terjangkau (kode $code). Periksa nginx (sudo nginx -t) atau security group port 443."
+          echo "::error::Healthy on the server but $PUBLIC_URL is unreachable (code $code). Check nginx (sudo nginx -t) or the security group for port 443."
           exit 1
 
-      - name: Ringkasan
+      - name: Summary
         if: always()
         run: |
           {
@@ -254,9 +221,9 @@ jobs:
             echo "| Image | \`${{ steps.rel.outputs.image }}\` |"
             echo "| Commit | \`${GITHUB_SHA::12}\` |"
             echo "| URL | $PUBLIC_URL |"
-            echo "| Hasil | ${{ job.status }} |"
+            echo "| Result | ${{ job.status }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Hapus kunci deploy
+      - name: Remove deploy key
         if: always()
         run: rm -f ~/.ssh/deploy_key

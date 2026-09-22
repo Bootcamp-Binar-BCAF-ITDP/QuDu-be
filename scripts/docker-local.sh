@@ -1,18 +1,3 @@
-#!/usr/bin/env bash
-# Run QuDu-be and its own PostgreSQL in Docker on this machine, for testing.
-#
-#   bash scripts/docker-local.sh up       build the image, start db + app, wait until healthy
-#   bash scripts/docker-local.sh status   container state and health
-#   bash scripts/docker-local.sh logs     follow the backend log
-#   bash scripts/docker-local.sh psql     open psql inside the database container
-#   bash scripts/docker-local.sh down     stop; keeps the database and uploads
-#   bash scripts/docker-local.sh reset    stop and DELETE the database and uploads volumes
-#
-# Settings come from .env.local, created on first run with generated secrets.
-# It is gitignored and never read by the server setup, which uses .env.
-#
-# Works in Git Bash on Windows and in bash on Linux/macOS.
-
 if [ -z "${BASH_VERSION:-}" ]; then
     exec bash "$0" "$@"
 fi

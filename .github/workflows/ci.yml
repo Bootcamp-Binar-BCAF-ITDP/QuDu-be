@@ -37,7 +37,6 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      # Download and open index.html to see which lines are untested.
       - name: Publish coverage report
         if: always()
         uses: actions/upload-artifact@v4
