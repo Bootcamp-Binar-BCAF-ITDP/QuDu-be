@@ -48,13 +48,5 @@ services:
       CACHE_TYPE: redis
       REDIS_HOST: redis
 
-  tunnel:
-    image: cloudflare/cloudflared:latest
-    container_name: qudu-be-tunnel
-    restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://app:8080
-    depends_on:
-      - app
-
 volumes:
   pgdata:
