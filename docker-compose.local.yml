@@ -1,16 +1,3 @@
-# Local test stack: the backend from docker-compose.yml plus its own PostgreSQL.
-#
-# Never used on a server. The GCP VM runs docker-compose.yml alone against a
-# database set up separately. Start this through the script, which also creates
-# .env.local:
-#
-#   bash scripts/docker-local.sh up
-#
-# or by hand:
-#
-#   ENV_FILE=.env.local docker compose --env-file .env.local \
-#       -f docker-compose.yml -f docker-compose.local.yml up -d --build
-
 services:
   db:
     image: postgres:18-alpine
@@ -20,12 +7,8 @@ services:
       POSTGRES_DB: ${DB_NAME:-qudu2}
       POSTGRES_USER: ${DB_USERNAME:?DB_USERNAME must be set in .env.local}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env.local}
-    # 5433, not 5432: the native PostgreSQL on this laptop already holds 5432.
-    # Bound to 127.0.0.1 so only this machine (DBeaver, psql) can reach it.
     ports:
       - "127.0.0.1:${DB_HOST_PORT:-5433}:5432"
-    # PostgreSQL 18 images keep their data under /var/lib/postgresql/18/docker;
-    # the volume goes on the parent, not on the old .../data path.
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
@@ -35,15 +18,16 @@ services:
       start_period: 20s
       retries: 10
 
-  # Cache for @Cacheable/@CacheEvict (see RedisConfig). No volume on purpose:
-  # a cache that survives a restart is a cache that can serve data the database
-  # no longer has. Losing it costs one slow first request.
   redis:
     image: redis:8-alpine
     container_name: qudu-be-redis
     restart: unless-stopped
-    # Bound to loopback so nothing outside this machine can read or write cache
-    # entries — with default typing enabled, write access to Redis is a way in.
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 64mb
+      --maxmemory-policy allkeys-lru
     ports:
       - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
@@ -59,8 +43,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # Overrides whatever DB_URL .env.local carries: inside the compose network
-    # the database is simply "db".
     environment:
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-qudu2}
       REDIS_HOST: redis

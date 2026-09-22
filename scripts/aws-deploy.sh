@@ -22,6 +22,7 @@ BACKUP_DIR="$HOME/backups"
 CURRENT_FILE="$DEPLOY_DIR/.image-current"
 APP_CONTAINER=qudu-be
 DB_CONTAINER=qudu-be-db
+REDIS_CONTAINER=qudu-be-redis
 UPLOADS_VOLUME=qudu-be_uploads
 APP_UID=1001
 
@@ -199,6 +200,20 @@ wait_healthy "$DB_CONTAINER" 120 || {
     dk logs --tail 60 "$DB_CONTAINER" || true
     die "PostgreSQL did not become healthy."
 }
+
+# ------------------------------------------------------------------ cache ----
+
+# Started before the app, which declares depends_on: redis healthy. A Redis
+# that fails to start is not fatal: the app logs the failed lookups and reads
+# PostgreSQL instead (RedisConfig.errorHandler), so this warns rather than dies
+# — a cache is not worth refusing a deploy over.
+say "Cache"
+if compose "$IMAGE" up -d --no-build redis; then
+    wait_healthy "$REDIS_CONTAINER" 60 \
+        || warn "Redis did not become healthy; the app will run without a cache."
+else
+    warn "Redis could not be started; the app will run without a cache."
+fi
 
 dbq() {
     dk exec -i "$DB_CONTAINER" sh -c \

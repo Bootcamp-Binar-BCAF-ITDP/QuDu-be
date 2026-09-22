@@ -1,36 +1,16 @@
-# GCP VM stack: the backend from docker-compose.yml plus its own PostgreSQL.
-#
-# Used by .github/workflows/deploy-gcp.yml through scripts/gcp-deploy.sh, which
-# also restores the seed dump into this database exactly once. By hand:
-#
-#   docker compose -f docker-compose.yml -f docker-compose.gcp.yml ps
-#
-# The database lives in the named volume "qudu-be_pgdata". `docker compose down`
-# keeps it; `down -v` DELETES every loan record — never use -v here.
-
 services:
   db:
-    # Must be 18 or newer: the seed dump was taken with pg_dump 18.4, and
-    # pg_restore refuses archives from a newer server than itself.
     image: postgres:18-alpine
     container_name: qudu-be-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: qudu2
-      # Read only when the volume is first initialised. Changing DB_PASSWORD in
-      # GitHub later does NOT change it in the database — see DEPLOY-GCP.md.
       POSTGRES_USER: ${DB_USERNAME:?DB_USERNAME must be set in .env}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
-    # Loopback only, for psql or a DBeaver SSH tunnel from the VM itself. The
-    # app reaches the database over the compose network, not through this port.
     ports:
       - "127.0.0.1:${DB_HOST_PORT:-5432}:5432"
-    # PostgreSQL 18 images keep their data under /var/lib/postgresql/18/docker;
-    # the volume goes on the parent, not on the old .../data path.
     volumes:
       - pgdata:/var/lib/postgresql
-    # -h 127.0.0.1 on purpose: during first-time init the image runs a temporary
-    # server on the unix socket only, which a socket check would call "ready".
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d qudu2"]
       interval: 5s
@@ -38,24 +18,36 @@ services:
       start_period: 30s
       retries: 10
 
+  redis:
+    image: redis:8-alpine
+    container_name: qudu-be-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory 64mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
+
   app:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       DB_URL: jdbc:postgresql://db:5432/qudu2
+      CACHE_TYPE: redis
+      REDIS_HOST: redis
 
-  # Cloudflare quick tunnel: public HTTPS with no inbound port, no Cloudflare
-  # account and no domain. cloudflared dials OUT to Cloudflare, so the GCP
-  # firewall (which we cannot change) never matters.
-  #
-  # The URL is random (https://<words>.trycloudflare.com) and printed in this
-  # container's log:  docker logs qudu-be-tunnel 2>&1 | grep trycloudflare
-  # It CHANGES whenever this container restarts — recreate, crash, VM reboot.
-  #
-  # Reaches the app by service name over the compose network, not through
-  # network_mode: host + localhost:8080 — on this VM the app is published on
-  # host port 80 (APP_PORT), so localhost:8080 on the host is nothing.
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: qudu-be-tunnel

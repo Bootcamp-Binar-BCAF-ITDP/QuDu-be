@@ -9,6 +9,8 @@ import com.delvin.loan.common.evict.EvictsUserCaches;
 import com.delvin.loan.common.evict.EvictsBranchCaches;
 import com.delvin.loan.common.evict.EvictsPlafondCaches;
 import com.delvin.loan.dto.request.auth.RegisterRequest;
+import com.delvin.loan.dto.response.loanresp.CustomerSummary;
+import com.delvin.loan.dto.response.loanresp.LoanApplicationResponse;
 import com.delvin.loan.dto.response.plafond.PlafondResponse;
 import com.delvin.loan.service.AuthService;
 import com.delvin.loan.service.BranchManagerService;
@@ -451,6 +453,55 @@ class RedisConfigTest {
                     .collect(java.util.stream.Collectors.toSet());
             assertThat(declared).as(type.getSimpleName()).containsAll(names);
         });
+    }
+
+    /**
+     * These DTOs carried only @AllArgsConstructor until 2026-09-22. Jackson
+     * could write them but not read them back, and because the error handler
+     * logs a failed read and falls through to the database, the endpoint kept
+     * answering while the cache never served a single hit. Nothing but a round
+     * trip catches that.
+     */
+    @Test
+    @DisplayName("a cached application page reads back as LoanApplicationResponse, not maps")
+    void applicationPageRoundTripsTyped() {
+
+        RedisCacheManager.RedisCacheManagerBuilder builder = RedisCacheManager.builder();
+        config.cacheTtls().customize(builder);
+
+        RedisCacheConfiguration configuration =
+                builder.getCacheConfigurationFor(CacheNames.APPLICATION_PAGE).orElseThrow();
+
+        CustomerSummary customer = new CustomerSummary();
+        customer.setCustomerId("CUST-001");
+        customer.setCustomerName("Budi");
+
+        LoanApplicationResponse application = new LoanApplicationResponse();
+        application.setApplicationId("LA-20260101-ABCD1234");
+        application.setCustomer(customer);
+        application.setStatus("CHECKING");
+        application.setRequestedAmount(new BigDecimal("5000000"));
+        application.setSubmissionDate(LocalDate.of(2026, 1, 1));
+
+        PageResponse<LoanApplicationResponse> page = new PageResponse<>(
+                List.of(application), 0, 10, 1, 1, true, true, false);
+
+        byte[] bytes = configuration.getValueSerializationPair().write(page).array();
+        Object back = configuration.getValueSerializationPair().read(java.nio.ByteBuffer.wrap(bytes));
+
+        assertThat(back).isInstanceOf(PageResponse.class);
+
+        Object row = ((PageResponse<?>) back).getContent().get(0);
+        assertThat(row).isInstanceOf(LoanApplicationResponse.class);
+
+        LoanApplicationResponse readBack = (LoanApplicationResponse) row;
+        assertThat(readBack.getApplicationId()).isEqualTo("LA-20260101-ABCD1234");
+        assertThat(readBack.getStatus()).isEqualTo("CHECKING");
+        assertThat(readBack.getRequestedAmount()).isEqualByComparingTo("5000000");
+        assertThat(readBack.getSubmissionDate()).isEqualTo(LocalDate.of(2026, 1, 1));
+        // The nested DTO needs its own no-arg constructor, or this is a Map.
+        assertThat(readBack.getCustomer()).isInstanceOf(CustomerSummary.class);
+        assertThat(readBack.getCustomer().getCustomerName()).isEqualTo("Budi");
     }
 
     @Test
