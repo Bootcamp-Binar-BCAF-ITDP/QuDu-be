@@ -98,12 +98,6 @@ class RedisConfigTest {
                 .isEqualTo("qudu::" + CacheNames.PLAFOND_BY_ID + "::");
     }
 
-    /**
-     * The catalog holds one value, so its Redis key is meant to read exactly
-     * "qudu::plafond:catalog". That takes two things that have to agree: no
-     * trailing "::" in the prefix, and an empty SpEL key on the method. Spring's
-     * default for a no-argument method would otherwise append "SimpleKey []".
-     */
     @Test
     @DisplayName("the catalog key is exactly qudu::plafond:catalog")
     void catalogKeyHasNoSuffix() throws Exception {
@@ -122,13 +116,6 @@ class RedisConfigTest {
         assertThat(prefix + key).isEqualTo("qudu::plafond:catalog");
     }
 
-    /**
-     * Spring keys a no-argument method by SimpleKey.EMPTY, which prints as
-     * "SimpleKey []" — and against the no-trailing-"::" prefix these caches use
-     * it would read "qudu::plafond:catalogSimpleKey []". The key generator
-     * turns that into the empty string instead, so no service needs to remember
-     * to write key = "''".
-     */
     @Test
     @DisplayName("a method with no arguments is keyed by the empty string, not SimpleKey")
     void noArgumentMethodsGetAnEmptyKey() throws Exception {
@@ -140,17 +127,11 @@ class RedisConfigTest {
         assertThat(generator.generate(null, BranchService.class.getDeclaredMethod("getBranchOptions")))
                 .isEqualTo("");
 
-        // Methods with arguments keep Spring's own behaviour.
         assertThat(generator.generate(null,
                 PlafondService.class.getDeclaredMethod("getById", Integer.class), 7))
                 .isEqualTo(7);
     }
 
-    /**
-     * BRANCH_PAGE was added to CacheNames and annotated on the service but left
-     * out of cacheTtls, which silently falls back to the untyped serializer and
-     * returns a Map on the first cache hit. This fails the build instead.
-     */
     @Test
     @DisplayName("every cache name declares a typed configuration")
     void everyCacheNameIsRegistered() throws Exception {
@@ -249,14 +230,6 @@ class RedisConfigTest {
         assertThatThrownBy(() -> handler.handleCacheClearError(redisDown, cache)).isSameAs(redisDown);
     }
 
-    /**
-     * A #name in a cache key that does not match a parameter is not a compile
-     * error and not a SpEL error either: an unknown variable evaluates to null,
-     * and Spring reports "Null key returned for cache operation" at runtime,
-     * with a hint about the -parameters flag that has nothing to do with it.
-     * That cost a debugging round on BranchService.getBranchById, whose key
-     * said #branchId while the parameter was branchCode.
-     */
     @Test
     @DisplayName("every cache key names a parameter the method actually has")
     void cacheKeysNameRealParameters() {
@@ -284,11 +257,6 @@ class RedisConfigTest {
                 .isEmpty();
     }
 
-    /**
-     * A page is only the same page when the filter, the number, the size and
-     * the sort all match. Serving page 0 sorted by level as though it were page
-     * 0 sorted by name would show the wrong rows, so each part is in the key.
-     */
     @Test
     @DisplayName("the page key covers filter, page, size and sort")
     void pageKeyCoversEveryPart() throws Exception {
@@ -455,13 +423,6 @@ class RedisConfigTest {
         });
     }
 
-    /**
-     * These DTOs carried only @AllArgsConstructor until 2026-09-22. Jackson
-     * could write them but not read them back, and because the error handler
-     * logs a failed read and falls through to the database, the endpoint kept
-     * answering while the cache never served a single hit. Nothing but a round
-     * trip catches that.
-     */
     @Test
     @DisplayName("a cached application page reads back as LoanApplicationResponse, not maps")
     void applicationPageRoundTripsTyped() {
@@ -499,7 +460,6 @@ class RedisConfigTest {
         assertThat(readBack.getStatus()).isEqualTo("CHECKING");
         assertThat(readBack.getRequestedAmount()).isEqualByComparingTo("5000000");
         assertThat(readBack.getSubmissionDate()).isEqualTo(LocalDate.of(2026, 1, 1));
-        // The nested DTO needs its own no-arg constructor, or this is a Map.
         assertThat(readBack.getCustomer()).isInstanceOf(CustomerSummary.class);
         assertThat(readBack.getCustomer().getCustomerName()).isEqualTo("Budi");
     }
@@ -652,9 +612,6 @@ class RedisConfigTest {
     @Test
     @DisplayName("the catalog is read through the cache")
     void catalogIsCacheable() throws Exception {
-
-        // Merged, not raw: value() and cacheNames() are @AliasFor each other, so
-        // plain reflection sees only whichever one was written.
         Cacheable cacheable = AnnotatedElementUtils.findMergedAnnotation(
                 PlafondService.class.getDeclaredMethod("catalog"), Cacheable.class);
 

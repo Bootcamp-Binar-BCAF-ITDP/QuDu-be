@@ -23,11 +23,6 @@ public final class TestFixtures {
     public static final String APPLICATION_ID = "APP-001";
     public static final String USER_ID = "USR-001";
 
-    /**
-     * Branch of the default customer, application and staff-with-branch
-     * fixtures, so the common case is "everyone is at the same branch" and a
-     * test only spells out branch ids when the difference is the point.
-     */
     public static final int BRANCH_ID = 1;
 
     public static Plafond plafond(int level, long min, long max) {
@@ -124,7 +119,6 @@ public final class TestFixtures {
         return application(status, BRANCH_ID);
     }
 
-    /** An application routed to {@code branchId}, like a real one created by a customer of that branch. */
     public static LoanApplication application(String status, int branchId) {
         LoanApplication application = new LoanApplication();
         application.setApplicationId(APPLICATION_ID);
